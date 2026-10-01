@@ -1,7 +1,7 @@
 // アクセス解析（GoatCounter）。Cookie や個人を特定する情報は使わない。
 // GOATCOUNTER_CODE に GoatCounter のサイトコード（https://<code>.goatcounter.com の <code>）を設定すると有効になる。
 
-const GOATCOUNTER_CODE = '';
+const GOATCOUNTER_CODE: string = 'tasuku-mahjong';
 
 interface GoatCounter {
   count(vars: { path: string; title?: string; event?: boolean }): void;
