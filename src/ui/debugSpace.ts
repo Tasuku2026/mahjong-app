@@ -24,7 +24,7 @@ const SEAT_RECTS: { rect: Rect; cpuOnly?: boolean }[] = [
 const FIXED_RECTS: Rect[] = [
   [33, 33, 67, 67], // 中央（残り枚数・供託・点数）
 ];
-const MEASURED = ['.round-info', '.sound-btn', '.tools-left', '.tools-right'];
+const MEASURED = ['.round-info', '.sound-btn', '.tools', '.tools-help'];
 
 function rotate([x1, y1, x2, y2]: Rect, seat: number): Rect {
   switch (seat) {

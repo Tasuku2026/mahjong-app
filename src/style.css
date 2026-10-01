@@ -288,10 +288,12 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
   min-height: 58px;
   display: flex;
   flex-wrap: wrap;
+  /* 文字やボタンは欄の下端に寄せ、手牌とのすき間を小さく */
+  align-content: flex-end;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 8px;
+  padding: 8px 8px 4px;
 }
 .controls .info { color: var(--muted); font-size: .9rem; width: 100%; text-align: center; }
 .controls button .mini { --w: 15px; display: inline-flex; margin-left: 6px; vertical-align: middle; }
@@ -306,9 +308,8 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
   display: flex;
   justify-content: flex-end;
   gap: 6px;
-  min-height: 4px;
-  margin-bottom: 6px;
 }
+.my-melds:not(:empty) { margin-bottom: 4px; }
 .my-hand {
   --w: min(calc((100vw - 16px) / 14.6), 46px);
   display: flex;
@@ -469,7 +470,7 @@ button.chip.on.cheat { background: #b78cff; border-color: #b78cff; }
 .b-mid { color: #ffb347; }
 .b-high { color: var(--minus); }
 .b-hit { color: #fff; background: #d4283a; border-radius: 3px; padding: 0 2px; }
-.my-hand { padding-top: calc(var(--w) * 0.4 + 4px); }
+.my-hand { padding-top: 0; }
 
 /* ---------------- アニメーション ---------------- */
 @keyframes discard-in {
@@ -570,20 +571,34 @@ button.chip[data-act="danger"] { min-width: calc(6em + 14px); }
 .sound-btn svg { width: 62%; height: 62%; }
 .sound-btn.sound-off { color: var(--muted); }
 
-/* 卓の左下・右下: 補助機能のボタン */
+/* 卓の右下: 補助機能のボタン（縦1列）と、右端の列の？ */
 .tools {
   position: absolute;
-  bottom: 1.5%;
+  right: 6.8%;
+  bottom: 1%;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  align-items: flex-end;
+  gap: 2px;
   z-index: 6;
 }
-.tools-left { left: 7.5%; align-items: flex-start; }
-.tools-right { right: 7.5%; align-items: flex-end; }
-.tools button.chip { background: rgba(0, 0, 0, .28); }
+.tools button.chip {
+  height: 22px;
+  min-height: 0;
+  padding: 0 6px;
+  font-size: .7rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: flex-end;
+  padding-bottom: 4px;
+  background: rgba(0, 0, 0, .28);
+}
+.tools button.chip ruby rt { font-size: .55em; }
 .tools button.chip.on { background: var(--accent); }
 .tools button.chip.on.cheat { background: #b78cff; }
+.tools button.chip[data-act="danger"] { min-width: calc(6em + 12px); justify-content: center; }
+.tools-help { position: absolute; right: .8%; bottom: 1%; z-index: 6; }
+.tools-help button.help { margin: 0; width: 22px; height: 22px; background: rgba(0, 0, 0, .28); }
 .b-guard { color: #5ec8ff; font-size: 1.05em; }
 
 /* スタート画面: 「対局」と「CPUの強さ」を横並び（項目名の下に選択欄） */

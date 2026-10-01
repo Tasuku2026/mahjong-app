@@ -541,18 +541,16 @@ export class App implements GameUI {
     const chip = (key: string, label: string, on: boolean) =>
       `<button class="chip ${on ? 'on' : ''}" data-act="toggle" data-key="${key}" aria-pressed="${on}">${label}</button>`;
     const dangerLabel = { off: '危険度', est: '危険度：推定', true: '危険度：透視' }[a.danger];
-    // 卓の左下・右下の空いている角に置く
+    // 卓の右下の空いている角に縦1列で置く。？は右側のCPUの手牌と同じ列の一番下
     return `
-      <div class="tools tools-left">
+      <div class="tools">
         ${chip('hint', 'ヒント', a.hint)}
         ${chip('outlook', furigana('役') + '・期待値', a.outlook)}
         <button class="chip ${a.danger !== 'off' ? 'on' : ''} ${a.danger === 'true' ? 'cheat' : ''}" data-act="danger">${dangerLabel}</button>
-      </div>
-      <div class="tools tools-right">
         ${chip('remain', '残り枚数', a.remain)}
         ${chip('open', furigana('手牌') + '公開', a.open)}
-        ${helpButton('assist')}
-      </div>`;
+      </div>
+      <div class="tools-help">${helpButton('assist')}</div>`;
   }
 
   /** 卓の左上の、効果音のオン・オフ */
