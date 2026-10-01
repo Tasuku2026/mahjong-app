@@ -125,6 +125,7 @@ export class App implements GameUI {
       <div class="start">
         <h1>ひとり麻雀</h1>
         <p class="sub">CPU 3人と対局する4人打ちリーチ麻雀</p>
+        <div class="start-grid">
         <section class="card">
           <h2>対局</h2>
           <label class="row"><span>対局の長さ${helpButton('len')}</span>
@@ -140,6 +141,7 @@ export class App implements GameUI {
               <option value="0.5" ${s.speed === 0.5 ? 'selected' : ''}>はやい</option>
             </select>
           </label>
+          <label class="row inline"><span>効果音</span><input type="checkbox" id="sound" ${s.sound ? 'checked' : ''}></label>
         </section>
         <section class="card">
           <h2>CPUの強さ${helpButton('level')}</h2>
@@ -147,14 +149,11 @@ export class App implements GameUI {
           ${levelSelect(1, '対面（上）')}
           ${levelSelect(2, '上家（左）')}
         </section>
+        </div>
         <section class="card">
           <h2>ルール</h2>
           ${RULE_ROWS.map(([key, label]) => `
             <label class="row"><span>${label}${helpButton(key)}</span><input type="checkbox" data-rule="${key}" ${s.rules[key] ? 'checked' : ''}></label>`).join('')}
-        </section>
-        <section class="card">
-          <h2>その他</h2>
-          <label class="row"><span>効果音</span><input type="checkbox" id="sound" ${s.sound ? 'checked' : ''}></label>
         </section>
         <button class="primary big" data-act="start">対局開始</button>
         <button class="big secondary" data-act="stats">戦績を見る</button>

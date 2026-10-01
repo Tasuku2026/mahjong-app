@@ -585,3 +585,20 @@ button.chip[data-act="danger"] { min-width: calc(6em + 14px); }
 .tools button.chip.on { background: var(--accent); }
 .tools button.chip.on.cheat { background: #b78cff; }
 .b-guard { color: #5ec8ff; font-size: 1.05em; }
+
+/* スタート画面: 「対局」と「CPUの強さ」を横並び（項目名の下に選択欄） */
+.start-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.start-grid .card { margin-bottom: 0; padding: 10px 12px; }
+.start-grid .row { flex-direction: column; align-items: stretch; gap: 4px; padding: 7px 0; }
+.start-grid .row > span { font-size: .9rem; white-space: nowrap; }
+.start-grid .row select { width: 100%; }
+.start-grid .row.inline { flex-direction: row; align-items: center; }
+/* とても狭い画面では縦に並べる */
+@media (max-width: 330px) {
+  .start-grid { grid-template-columns: 1fr; }
+}
