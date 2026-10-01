@@ -579,12 +579,12 @@ export class App implements GameUI {
   }
 
   /** ヒントが勧める捨て牌（打牌以外を勧めるときは null） */
-  private hintTile(g: Game): Tile | null {
+  private hintTile(g: Game): { tile: Tile; fold: boolean } | null {
     const adv = this.settings.assist.hint ? this.hint(g) : null;
     if (adv?.kind !== 'turn' || adv.action.type !== 'discard') return null;
     // リーチ牌を選んでいる間は、リーチを勧めているときだけ★を出す
     if (this.riichiMode && !adv.action.riichi) return null;
-    return adv.action.tile;
+    return { tile: adv.action.tile, fold: adv.fold };
   }
 
   /** 勧めているボタンに★を付ける */
@@ -640,7 +640,7 @@ export class App implements GameUI {
         parts.push(this.outlookHtml(g, info.outlook, `${kindName(kindOf(this.selected))}を切ると：`) +
           `<div class="muted small">受け入れ ${info.ukeire}枚</div>`);
       } else if (pend) {
-        const tile = this.hintTile(g) ?? pend.opts.discardable[0];
+        const tile = this.hintTile(g)?.tile ?? pend.opts.discardable[0];
         const info = discardInfo(g, tile);
         parts.push(this.outlookHtml(g, info.outlook, '最善の打牌をした場合：'));
       } else if (p.hand.length % 3 === 1) {
@@ -674,13 +674,16 @@ export class App implements GameUI {
     const tiles = p.hand.filter((t) => t !== drawn);
     const a = this.settings.assist;
     const danger = a.danger !== 'off' ? handDanger(g, a.danger) : null;
-    const recTile = pend ? this.hintTile(g) : null;
+    const rec = pend ? this.hintTile(g) : null;
     const one = (t: Tile, extra: string[] = []) => {
       const cls = [...extra];
       if (pend) cls.push(allowed.includes(t) ? 'can' : 'dim');
       if (this.selected === t) cls.push('selected');
       const badges: string[] = [];
-      if (recTile !== null && kindOf(recTile) === kindOf(t)) badges.push('<span class="b-star">★</span>');
+      // 攻めのおすすめは★（金）、守備（安全な牌を優先）のおすすめは●（水色）
+      if (rec && kindOf(rec.tile) === kindOf(t)) {
+        badges.push(rec.fold ? '<span class="b-guard" title="守備のおすすめ">●</span>' : '<span class="b-star" title="攻めのおすすめ">★</span>');
+      }
       const d = danger?.get(kindOf(t));
       if (d) badges.push(this.dangerBadge(d.value, a.danger, d.hitBy));
       const tile = tileHtml(t, { red: g.isRed(t), classes: cls, attrs: { 'data-act': 'tile', 'data-tile': t } });

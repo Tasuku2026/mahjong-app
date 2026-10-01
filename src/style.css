@@ -584,3 +584,4 @@ button.chip[data-act="danger"] { min-width: calc(6em + 14px); }
 .tools button.chip { background: rgba(0, 0, 0, .28); }
 .tools button.chip.on { background: var(--accent); }
 .tools button.chip.on.cheat { background: #b78cff; }
+.b-guard { color: #5ec8ff; font-size: 1.05em; }
