@@ -9,6 +9,7 @@ import { helpButton, helpDialogHtml } from './help';
 import { AssistSettings, DEFAULT_ASSIST, DangerMode, discardInfo, handDanger, recommend, remainCounts } from './assist';
 import { outlook, Outlook } from '../ai/value';
 import { setSoundEnabled, sfx, unlockAudio } from './sound';
+import { analyticsEnabled, trackEvent } from './analytics';
 import { GameRecord, RoundTally, clearRecords, emptyTally, levelBand, loadRecords, saveRecord, summarize } from './stats';
 
 type Pending =
@@ -156,6 +157,7 @@ export class App implements GameUI {
         </section>
         <button class="primary big" data-act="start">対局開始</button>
         <button class="big secondary" data-act="stats">戦績を見る</button>
+        ${analyticsEnabled() ? '<p class="privacy">利用状況の把握のため、アクセス解析（GoatCounter）を使用しています。Cookieや個人を特定する情報は使用しません。</p>' : ''}
       </div>`;
   }
 
@@ -238,6 +240,9 @@ export class App implements GameUI {
     this.game = g;
     this.tally = emptyTally();
     this.animatedDiscard = '';
+    trackEvent('game-start', '対局開始');
+    trackEvent(`length-${s.rules.gameLength}`, s.rules.gameLength === 'tonpu' ? '東風戦' : '半荘戦');
+    for (const l of s.levels) trackEvent(`cpu-level-${levelLabel(l)}`, `CPUレベル${levelLabel(l)}`);
     const standings = await g.run();
     await this.showFinal(standings);
   }
@@ -740,6 +745,8 @@ export class App implements GameUI {
       ...this.tally,
     });
     if (myRank === 1) sfx.win();
+    trackEvent('game-finish', '対局終了');
+    trackEvent(`rank-${myRank}`, `最終${myRank}位`);
     return new Promise((resolve) => {
       this.overlay = {
         html: `

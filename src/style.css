@@ -534,3 +534,4 @@ button.danger-btn { background: transparent; color: var(--minus); border-color: 
 .recent td { font-size: .85rem; }
 .recent .rank-1 { color: var(--accent); font-weight: 800; }
 .recent .rank-4 { color: var(--minus); }
+.privacy { color: var(--muted); font-size: .75rem; line-height: 1.6; margin-top: 16px; text-align: center; }
