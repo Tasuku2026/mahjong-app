@@ -602,3 +602,13 @@ button.chip[data-act="danger"] { min-width: calc(6em + 14px); }
 @media (max-width: 330px) {
   .start-grid { grid-template-columns: 1fr; }
 }
+
+/* 専門用語のふりがな・言い換え */
+ruby rt { font-size: .58em; color: var(--muted); font-weight: 400; letter-spacing: 0; }
+.outlook .o-head b { font-size: 1.05em; }
+.outlook .o-note { color: var(--muted); font-size: .8rem; margin-left: 8px; }
+.outlook .o-label { display: inline-block; color: var(--muted); font-size: .75rem; font-weight: 400; margin-right: 6px; }
+.outlook .o-yaku { line-height: 2; }
+.outlook .o-nums { line-height: 2.1; }
+.outlook .o-nums small { color: var(--muted); font-size: .72rem; }
+.outlook .waits .o-label small { font-size: .9em; }

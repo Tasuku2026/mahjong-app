@@ -6,6 +6,7 @@ import { DEFAULT_RULES, Rules } from '../core/types';
 import { CpuAgent, LEVEL_KAMI, LEVEL_ONI, levelLabel } from '../ai/cpu';
 import { tileHtml, meldHtml } from './tileView';
 import { helpButton, helpDialogHtml } from './help';
+import { T, yakuRuby } from './terms';
 import { AssistSettings, DEFAULT_ASSIST, DangerMode, Advice, adviseCall, adviseTurn, discardInfo, handDanger, remainCounts } from './assist';
 import { outlook, Outlook } from '../ai/value';
 import { setSoundEnabled, sfx, unlockAudio } from './sound';
@@ -604,23 +605,28 @@ export class App implements GameUI {
     return `<span class="${cls}">${pct}%</span>`;
   }
 
-  private outlookHtml(g: Game, o: Outlook, head: string): string {
-    const shanten = o.shanten <= 0 ? (o.shanten === 0 ? 'テンパイ' : '和了') : `${o.shanten}向聴`;
-    const yaku = o.yaku.length ? o.yaku.join('・') : '<span class="warn">役がありません</span>';
+  /** 役・期待値の表示。専門用語にふりがなを付け、初心者向けの言い換えを添える */
+  private outlookHtml(g: Game, o: Outlook, head: string, ukeire?: number): string {
+    let shanten: string;
+    if (o.shanten < 0) shanten = `<b>${T.agari}の形</b>`;
+    else if (o.shanten === 0) shanten = `<b>${T.tenpai}</b><span class="o-note">あと1枚で${T.agari}できる形</span>`;
+    else shanten = `<b>${T.shanten(o.shanten)}</b><span class="o-note">${T.tenpai}まで あと${o.shanten}枚</span>`;
+    const yaku = o.yaku.length ? o.yaku.map(yakuRuby).join('・') : '<span class="warn">役がありません（このままでは和了できない）</span>';
     let waits = '';
     if (o.waits.length) {
-      waits = `<div class="waits">待ち ${o.waits.map((w) => `
-        <span class="wait">${tileHtml(w.kind * 4 + 3)}<small>残${w.remain}<br>${w.ron || w.tsumo ? `${fmt(Math.max(w.ron, w.tsumo))}` : '役なし'}</small></span>`).join('')}</div>`;
+      waits = `<div class="waits"><span class="o-label">${T.machi}<small>（当たり牌）</small></span>${o.waits.map((w) => `
+        <span class="wait">${tileHtml(w.kind * 4 + 3)}<small>残り${w.remain}枚<br>${w.ron || w.tsumo ? `${fmt(Math.max(w.ron, w.tsumo))}点` : '役なし'}</small></span>`).join('')}</div>`;
     }
     const riichiNote = o.assumeRiichi && o.shanten >= 0 ? '<small class="muted">（リーチした場合）</small>' : '';
     return `
       <div class="outlook">
-        <div class="o-head">${head}<b>${shanten}</b></div>
-        <div class="o-yaku">${yaku}</div>
+        <div class="o-head">${head}${shanten}</div>
+        <div class="o-yaku"><span class="o-label">目指せる役</span>${yaku}</div>
         <div class="o-nums">
-          <span>和了時 <b>${o.points ? `約${fmt(o.points)}点` : '—'}</b>${riichiNote}</span>
-          <span>和了率 <b>約${Math.round(o.winProb * 100)}%</b></span>
-          <span>期待値 <b>約${fmt(Math.round(o.ev / 100) * 100)}点</b></span>
+          <span>${T.agari}時の点数 <b>${o.points ? `約${fmt(o.points)}点` : '—'}</b>${riichiNote}</span>
+          <span>和了率 <b>約${Math.round(o.winProb * 100)}%</b><small>（あがれる確率）</small></span>
+          <span>期待値 <b>約${fmt(Math.round(o.ev / 100) * 100)}点</b><small>（点数×和了率）</small></span>
+          ${ukeire !== undefined ? `<span>${T.ukeire} <b>${ukeire}枚</b><small>（手が進む牌の残り）</small></span>` : ''}
         </div>
         ${waits}
       </div>`;
@@ -636,21 +642,15 @@ export class App implements GameUI {
     if (a.outlook) {
       if (pend && this.selected !== null) {
         const info = discardInfo(g, this.selected);
-        parts.push(this.outlookHtml(g, info.outlook, `${kindName(kindOf(this.selected))}を切ると：`) +
-          `<div class="muted small">受け入れ ${info.ukeire}枚</div>`);
+        parts.push(this.outlookHtml(g, info.outlook, `${kindName(kindOf(this.selected))}を切ると：`, info.ukeire));
       } else if (pend) {
-        const tile = this.hintTile(g)?.tile ?? pend.opts.discardable[0];
+        const adv = this.hint(g);
+        const tile = adv?.kind === 'turn' && adv.action.type === 'discard' ? adv.action.tile : pend.opts.discardable[0];
         const info = discardInfo(g, tile);
-        parts.push(this.outlookHtml(g, info.outlook, '最善の打牌をした場合：'));
+        parts.push(this.outlookHtml(g, info.outlook, '最善の打牌をした場合：', info.ukeire));
       } else if (p.hand.length % 3 === 1) {
         parts.push(this.outlookHtml(g, outlook(g, 0), 'いまの手：'));
       }
-    }
-
-    if (a.danger !== 'off') {
-      parts.push(a.danger === 'est'
-        ? '<div class="legend">危険度（推定）：見えている情報から、手牌の各牌でロンされる確率の目安を表示中　<span class="b-safe">安</span><span class="b-low">低</span><span class="b-mid">中</span><span class="b-high">高</span></div>'
-        : '<div class="legend cheat">危険度（透視）：相手の実際の手牌から計算中。<span class="b-hit">当</span> の牌を切るとロンされます</div>');
     }
 
     if (a.remain) {
@@ -756,7 +756,7 @@ export class App implements GameUI {
       body = r.wins.map((w) => {
         const res = w.result;
         const how = w.from === null ? 'ツモ' : `ロン（${names[w.from]}から）`;
-        const yaku = res.yaku.map((y) => `<li><span>${y.name}</span><span>${y.yakuman ? (y.yakuman > 1 ? `${y.yakuman}倍役満` : '役満') : `${y.han}翻`}</span></li>`);
+        const yaku = res.yaku.map((y) => `<li><span>${yakuRuby(y.name)}</span><span>${y.yakuman ? (y.yakuman > 1 ? `${y.yakuman}倍役満` : '役満') : `${y.han}翻`}</span></li>`);
         if (res.dora) yaku.push(`<li><span>ドラ</span><span>${res.dora}翻</span></li>`);
         if (res.aka) yaku.push(`<li><span>赤ドラ</span><span>${res.aka}翻</span></li>`);
         if (res.ura) yaku.push(`<li><span>裏ドラ</span><span>${res.ura}翻</span></li>`);
