@@ -10,7 +10,7 @@ import { AssistSettings, DEFAULT_ASSIST, DangerMode, Advice, adviseCall, adviseT
 import { outlook, Outlook } from '../ai/value';
 import { setSoundEnabled, sfx, unlockAudio } from './sound';
 import { analyticsEnabled, trackEvent } from './analytics';
-import { SPACE_DEBUG, centerFreeHtml, freeSpaceHtml, paintLowerFree } from './debugSpace';
+import { SPACE_DEBUG, centerFreeHtml, paintBoardFree, paintLowerFree } from './debugSpace';
 import { GameRecord, RoundTally, clearRecords, emptyTally, levelBand, loadRecords, saveRecord, summarize } from './stats';
 
 type Pending =
@@ -330,6 +330,17 @@ export class App implements GameUI {
         this.render();
         return;
       }
+      case 'sound': {
+        this.settings.sound = !this.settings.sound;
+        setSoundEnabled(this.settings.sound);
+        if (this.settings.sound) {
+          unlockAudio();
+          sfx.select();
+        }
+        saveSettings(this.settings);
+        this.render();
+        return;
+      }
       case 'danger': {
         const order: DangerMode[] = ['off', 'est', 'true'];
         const a = this.settings.assist;
@@ -450,20 +461,24 @@ export class App implements GameUI {
         <div class="board-wrap ${SPACE_DEBUG ? 'space-debug' : ''}"><div class="board">
           ${this.centerHtml(g)}
           ${[0, 1, 2, 3].map((s) => this.seatHtml(g, s)).join('')}
-          ${SPACE_DEBUG ? freeSpaceHtml() + centerFreeHtml() : ''}
+          ${this.soundButtonHtml()}
+          ${this.toolbarHtml()}
+          ${SPACE_DEBUG ? centerFreeHtml() : ''}
         </div></div>
-        <div class="toolbar">${this.toolbarHtml()}</div>
-        <div class="assist">${this.assistHtml(g)}</div>
         <div class="controls">${this.controlsHtml(g)}</div>
         <div class="me">
           <div class="my-melds">${g.players[0].melds.map((m) => meldHtml(m, 0, red)).join('')}</div>
           <div class="my-hand has-badges">${this.myHandHtml(g)}</div>
         </div>
+        <div class="assist">${this.assistHtml(g)}</div>
         ${this.overlay ? `<div class="overlay"><div class="dialog">${this.overlay.html}</div></div>` : ''}
       </div>`;
     const assist = this.root.querySelector('.assist');
     if (assist) assist.scrollTop = scroll;
-    if (SPACE_DEBUG) paintLowerFree(this.root);
+    if (SPACE_DEBUG) {
+      paintBoardFree(this.root);
+      paintLowerFree(this.root);
+    }
   }
 
   private centerHtml(g: Game): string {
@@ -525,13 +540,29 @@ export class App implements GameUI {
     const chip = (key: string, label: string, on: boolean) =>
       `<button class="chip ${on ? 'on' : ''}" data-act="toggle" data-key="${key}" aria-pressed="${on}">${label}</button>`;
     const dangerLabel = { off: '危険度', est: '危険度：推定', true: '危険度：透視' }[a.danger];
+    // 卓の左下・右下の空いている角に置く
     return `
-      ${chip('hint', 'ヒント', a.hint)}
-      ${chip('outlook', '役・期待値', a.outlook)}
-      <button class="chip ${a.danger !== 'off' ? 'on' : ''} ${a.danger === 'true' ? 'cheat' : ''}" data-act="danger">${dangerLabel}</button>
-      ${chip('remain', '残り枚数', a.remain)}
-      ${chip('open', '手牌公開', a.open)}
-      ${helpButton('assist')}`;
+      <div class="tools tools-left">
+        ${chip('hint', 'ヒント', a.hint)}
+        ${chip('outlook', '役・期待値', a.outlook)}
+        <button class="chip ${a.danger !== 'off' ? 'on' : ''} ${a.danger === 'true' ? 'cheat' : ''}" data-act="danger">${dangerLabel}</button>
+      </div>
+      <div class="tools tools-right">
+        ${chip('remain', '残り枚数', a.remain)}
+        ${chip('open', '手牌公開', a.open)}
+        ${helpButton('assist')}
+      </div>`;
+  }
+
+  /** 卓の左上の、効果音のオン・オフ */
+  private soundButtonHtml(): string {
+    const on = this.settings.sound;
+    const wave = on
+      ? '<path d="M16 8.5a5 5 0 0 1 0 7M18.8 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'
+      : '<path d="M16.5 9.5l5 5M21.5 9.5l-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>';
+    return `<button class="sound-btn ${on ? 'sound-on' : 'sound-off'}" data-act="sound" aria-label="効果音を${on ? 'オフ' : 'オン'}にする" aria-pressed="${on}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/>${wave}</svg>
+    </button>`;
   }
 
   /** おすすめ（手番・鳴き確認ごとにキャッシュ） */
@@ -554,48 +585,6 @@ export class App implements GameUI {
     // リーチ牌を選んでいる間は、リーチを勧めているときだけ★を出す
     if (this.riichiMode && !adv.action.riichi) return null;
     return adv.action.tile;
-  }
-
-  /** ヒントの文章 */
-  private hintLineHtml(g: Game, adv: Advice): string {
-    const t = (tile: Tile) => tileHtml(tile, { red: g.isRed(tile) });
-    const k = (kind: number) => tileHtml(kind * 4 + 3);
-    let msg: string;
-    let note = '';
-    if (adv.kind === 'turn') {
-      const a = adv.action;
-      const pend = this.pending?.kind === 'turn' ? this.pending : null;
-      switch (a.type) {
-        case 'tsumo': msg = 'ツモで和了'; break;
-        case 'kyuushu':
-          msg = '九種九牌で流局にする';
-          note = '幺九牌が9種類以上あり、和了が遠い';
-          break;
-        case 'ankan':
-        case 'kakan': msg = `${k(a.kind)} をカン`; break;
-        default:
-          if (a.riichi) {
-            msg = `リーチして ${t(a.tile)} を切る`;
-          } else if (pend && pend.opts.riichiTiles.length > 0) {
-            msg = `ダマテン（リーチしない）で ${t(a.tile)} を切る`;
-            note = '役があって十分高い・終盤など、リーチしないほうが得な場面';
-          } else {
-            msg = `${t(a.tile)} を切る`;
-          }
-          if (adv.fold) note = '（守備）相手の攻撃に備えて安全な牌を優先';
-      }
-    } else {
-      const a = adv.action;
-      switch (a.type) {
-        case 'ron': msg = 'ロンで和了'; break;
-        case 'pon': msg = `ポン（${a.tiles.map(t).join('')} を使う）`; break;
-        case 'chi': msg = `チー（${a.tiles.map(t).join('')} を使う）`; break;
-        case 'minkan': msg = 'カン'; break;
-        default:
-          msg = 'スキップ（鳴かない）';
-      }
-    }
-    return `<div class="hint-line">★ おすすめ：${msg}${note ? `<span class="fold">${note}</span>` : ''}</div>`;
   }
 
   /** 勧めているボタンに★を付ける */
@@ -644,9 +633,6 @@ export class App implements GameUI {
     const pend = this.pending?.kind === 'turn' ? this.pending : null;
     const p = g.players[0];
 
-    if (a.hint && this.pending) {
-      parts.push(this.hintLineHtml(g, this.hint(g)!));
-    }
 
     if (a.outlook) {
       if (pend && this.selected !== null) {

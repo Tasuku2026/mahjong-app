@@ -20,11 +20,11 @@ const SEAT_RECTS: { rect: Rect; cpuOnly?: boolean }[] = [
   { rect: [14, 93.6, 86, 99.6], cpuOnly: true },
 ];
 
-/** 回転しない要素 */
+/** 回転しない要素（局・ドラ表示、音ボタン、補助ボタンは実際の位置を測る） */
 const FIXED_RECTS: Rect[] = [
-  [33, 33, 67, 67], // 中央（残り枚数・供託）
-  [7, 7, 33, 23.2], // 局・ドラ表示
+  [33, 33, 67, 67], // 中央（残り枚数・供託・点数）
 ];
+const MEASURED = ['.round-info', '.sound-btn', '.tools-left', '.tools-right'];
 
 function rotate([x1, y1, x2, y2]: Rect, seat: number): Rect {
   switch (seat) {
@@ -35,59 +35,33 @@ function rotate([x1, y1, x2, y2]: Rect, seat: number): Rect {
   }
 }
 
-function usedRects(): Rect[] {
-  const out: Rect[] = [...FIXED_RECTS];
-  for (let seat = 0; seat < 4; seat++) {
-    for (const r of SEAT_RECTS) if (!r.cpuOnly || seat !== 0) out.push(rotate(r.rect, seat));
+/** 卓の上でピンクに塗る（描画のたびに、測った位置から計算し直す） */
+export function paintBoardFree(root: HTMLElement): void {
+  const board = root.querySelector<HTMLElement>('.board');
+  if (!board) return;
+  board.querySelectorAll('.free-board').forEach((e) => e.remove());
+  const br = board.getBoundingClientRect();
+  const used: Rect[] = [...FIXED_RECTS];
+  for (const sel of MEASURED) {
+    board.querySelectorAll(sel).forEach((el) => {
+      const r = el.getBoundingClientRect();
+      used.push([
+        ((r.left - br.left) / br.width) * 100, ((r.top - br.top) / br.height) * 100,
+        ((r.right - br.left) / br.width) * 100, ((r.bottom - br.top) / br.height) * 100,
+      ]);
+    });
   }
-  return out;
-}
-
-let cache: string | null = null;
-
-/** 空きセル（1%単位）を横方向にまとめた長方形の HTML */
-export function freeSpaceHtml(): string {
-  if (cache) return cache;
-  const used = usedRects();
+  for (let seat = 0; seat < 4; seat++) {
+    for (const r of SEAT_RECTS) if (!r.cpuOnly || seat !== 0) used.push(rotate(r.rect, seat));
+  }
   const N = 100;
   const free: boolean[][] = [];
   for (let y = 0; y < N; y++) {
     free.push([]);
-    for (let x = 0; x < N; x++) {
-      const hit = used.some(([x1, y1, x2, y2]) => x + 1 > x1 && x < x2 && y + 1 > y1 && y < y2);
-      free[y].push(!hit);
-    }
+    for (let x = 0; x < N; x++) free[y].push(!used.some(([x1, y1, x2, y2]) => x + 1 > x1 && x < x2 && y + 1 > y1 && y < y2));
   }
-  // 行ごとの連続区間を、同じ区間が続く行どうしで縦にまとめる
-  const rects: Rect[] = [];
-  const open = new Map<string, Rect>();
-  for (let y = 0; y <= N; y++) {
-    const runs = new Set<string>();
-    if (y < N) {
-      for (let x = 0; x < N; ) {
-        if (!free[y][x]) { x++; continue; }
-        let e = x;
-        while (e < N && free[y][e]) e++;
-        runs.add(`${x}-${e}`);
-        x = e;
-      }
-    }
-    for (const [key, r] of open) {
-      if (!runs.has(key)) {
-        rects.push(r);
-        open.delete(key);
-      }
-    }
-    for (const key of runs) {
-      const [a, b] = key.split('-').map(Number);
-      const r = open.get(key);
-      if (r) r[3] = y + 1;
-      else open.set(key, [a, y, b, y + 1]);
-    }
-  }
-  cache = rects.map(([x1, y1, x2, y2]) =>
-    `<div class="free-space" style="left:${x1}%;top:${y1}%;width:${x2 - x1}%;height:${y2 - y1}%"></div>`).join('');
-  return cache;
+  board.insertAdjacentHTML('beforeend', mergeCells(free).map(([x1, y1, x2, y2]) =>
+    `<div class="free-space free-board" style="left:${x1}%;top:${y1}%;width:${x2 - x1}%;height:${y2 - y1}%"></div>`).join(''));
 }
 
 // ---------------------------------------------------------------
@@ -186,29 +160,19 @@ function mergeCells(free: boolean[][]): Rect[] {
 }
 
 /**
- * 卓の下（ヒントのボタン〜自分の手牌）で、常に空いている場所を水色で塗る。
+ * 卓の下（操作欄・自分の手牌・補助パネル）で、常に空いている場所を水色で塗る。
  * 補助パネル・操作ボタン欄は、表示内容が最大のとき全体を使うので「使用中」とみなす。
  * 手牌は 14 枚（ツモ牌の間隔込み）のときの幅で考える。
  */
 export function paintLowerFree(root: HTMLElement): void {
   document.querySelectorAll('.free-lower').forEach((e) => e.remove());
   const board = root.querySelector('.board-wrap');
-  const toolbar = root.querySelector('.toolbar');
   const hand = root.querySelector<HTMLElement>('.my-hand');
-  if (!board || !toolbar || !hand) return;
+  if (!board || !hand) return;
   const top = board.getBoundingClientRect().bottom;
   const bottom = window.innerHeight;
   const width = window.innerWidth;
   const used: DOMRect[] = [];
-  // ボタン列: ボタンが並ぶ範囲
-  const chips = [...toolbar.children].map((c) => c.getBoundingClientRect());
-  if (chips.length) {
-    used.push(new DOMRect(
-      Math.min(...chips.map((r) => r.left)), Math.min(...chips.map((r) => r.top)),
-      Math.max(...chips.map((r) => r.right)) - Math.min(...chips.map((r) => r.left)),
-      Math.max(...chips.map((r) => r.bottom)) - Math.min(...chips.map((r) => r.top)),
-    ));
-  }
   for (const sel of ['.assist', '.controls', '.my-melds']) {
     const el = root.querySelector(sel);
     if (el) used.push(el.getBoundingClientRect());

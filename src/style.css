@@ -178,7 +178,7 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
 .round-info {
   position: absolute;
   left: 7%;
-  top: 7%;
+  top: 13%;
   width: 26%;
   font-size: calc(var(--S) * 0.034);
   line-height: 1.35;
@@ -283,7 +283,6 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
 }
 
 .controls {
-  margin-top: auto;
   width: 100%;
   max-width: 640px;
   min-height: 58px;
@@ -397,16 +396,6 @@ button.help {
 .help-dialog > button { width: 100%; margin-top: 12px; }
 
 /* ---------------- 補助機能 ---------------- */
-.toolbar {
-  width: 100%;
-  max-width: 640px;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 6px 0;
-}
 button.chip {
   min-height: 28px;
   padding: 3px 6px;
@@ -419,7 +408,6 @@ button.chip {
 }
 button.chip.on { color: #241a05; background: var(--accent); border-color: var(--accent); }
 button.chip.on.cheat { background: #b78cff; border-color: #b78cff; }
-.toolbar button.help { margin-left: 2px; }
 
 .assist {
   flex: 1 1 auto;
@@ -560,3 +548,39 @@ button.danger-btn { background: transparent; color: var(--minus); border-color: 
 .free-space.blue { background: rgba(80, 200, 255, .55); }
 /* 危険度ボタンは表示が変わっても幅を固定（ボタン列がずれないように） */
 button.chip[data-act="danger"] { min-width: calc(6em + 14px); }
+
+/* 卓の左上: 効果音のオン・オフ */
+.sound-btn {
+  position: absolute;
+  left: 1.2%;
+  top: 1.2%;
+  width: 10.5%;
+  height: 10.5%;
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, .3);
+  border: 1px solid rgba(255, 255, 255, .15);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 6;
+}
+.sound-btn svg { width: 62%; height: 62%; }
+.sound-btn.sound-off { color: var(--muted); }
+
+/* 卓の左下・右下: 補助機能のボタン */
+.tools {
+  position: absolute;
+  bottom: 1.5%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 6;
+}
+.tools-left { left: 7.5%; align-items: flex-start; }
+.tools-right { right: 7.5%; align-items: flex-end; }
+.tools button.chip { background: rgba(0, 0, 0, .28); }
+.tools button.chip.on { background: var(--accent); }
+.tools button.chip.on.cheat { background: #b78cff; }
