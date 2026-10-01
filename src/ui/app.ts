@@ -610,9 +610,11 @@ export class App implements GameUI {
     if (a.remain) {
       const rem = remainCounts(g);
       const cell = (k: number) => `<div class="r-cell ${rem[k] === 0 ? 'zero' : ''}">${tileHtml(k * 4 + 3)}<span>${rem[k]}</span></div>`;
-      const rows = [[0, 9], [9, 18], [18, 27], [27, 34]].map(([s, e]) =>
+      // 1段目: 萬子・筒子、2段目: 索子・字牌
+      const rows = [[0, 18], [18, 34]].map(([s, e]) =>
         `<div class="r-row">${Array.from({ length: e - s }, (_, i) => cell(s + i)).join('')}</div>`).join('');
-      parts.push(`<div class="remain-grid"><div class="muted small">残り枚数（あなたから見えていない枚数）</div>${rows}</div>`);
+      // ほかの補助情報より先（パネルの一番上）に出す
+      parts.unshift(`<div class="remain-grid"><div class="muted small">残り枚数（あなたから見えていない枚数・暗い牌は0枚）</div>${rows}</div>`);
     }
     return parts.join('');
   }

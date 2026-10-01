@@ -248,10 +248,10 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
 }
 
 .cpu-hand {
-  --w: calc(var(--S) * 0.036);
+  --w: calc(var(--S) * 0.044);
   position: absolute;
   left: 50%;
-  top: 93.8%;
+  bottom: 0.4%;
   transform: translateX(-50%);
   display: flex;
   align-items: flex-end;
@@ -404,14 +404,14 @@ button.help {
   flex-wrap: wrap;
   justify-content: center;
   align-items: center;
-  gap: 6px;
-  padding: 8px 8px 0;
+  gap: 4px;
+  padding: 6px 6px 0;
 }
 button.chip {
-  min-height: 30px;
-  padding: 4px 10px;
+  min-height: 28px;
+  padding: 3px 8px;
   border-radius: 999px;
-  font-size: .8rem;
+  font-size: .74rem;
   font-weight: 700;
   color: var(--muted);
   background: transparent;
@@ -450,11 +450,14 @@ button.chip.on.cheat { background: #b78cff; border-color: #b78cff; }
 .legend span { margin-left: 4px; }
 .legend.cheat { color: #cdb4ff; }
 
-.remain-grid { background: var(--panel); border-radius: 10px; padding: 6px 8px; --w: min(calc((100vw - 60px) / 9 * 0.62), 26px); }
-.r-row { display: flex; justify-content: center; gap: 4px; margin-top: 4px; }
-.r-cell { display: flex; flex-direction: column; align-items: center; gap: 1px; width: calc(var(--w) * 1.45); }
-.r-cell span { font-weight: 800; font-size: .8rem; font-variant-numeric: tabular-nums; }
-.r-cell.zero { opacity: .35; }
+/* 2段×18列に収める（スマホ幅でもスクロール不要） */
+.remain-grid { background: var(--panel); border-radius: 10px; padding: 5px 6px 6px; --w: min(calc((min(100vw, 640px) - 40px) / 18 - 1px), 28px); }
+.remain-grid .small { font-size: .72rem; }
+.r-row { display: flex; justify-content: center; gap: 1px; margin-top: 4px; }
+.r-cell { display: flex; flex-direction: column; align-items: center; width: var(--w); }
+.r-cell span { font-weight: 800; font-size: max(10px, calc(var(--w) * 0.5)); line-height: 1.2; font-variant-numeric: tabular-nums; }
+.r-cell.zero .tile { opacity: .3; }
+.r-cell.zero span { color: var(--minus); }
 
 /* 手牌のバッジ */
 .my-hand .slot { display: flex; flex-direction: column; align-items: center; }
