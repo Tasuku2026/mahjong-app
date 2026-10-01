@@ -7,6 +7,7 @@ import { CpuAgent, LEVEL_KAMI, LEVEL_ONI, levelLabel } from '../ai/cpu';
 import { tileHtml, meldHtml } from './tileView';
 import { helpButton, helpDialogHtml } from './help';
 import { T, furigana, kindRuby, roundRuby, yakuRuby } from './terms';
+import { yakuGuideHtml } from './yakuGuide';
 import { AssistSettings, DEFAULT_ASSIST, DangerMode, Advice, adviseCall, adviseTurn, discardInfo, handDanger, remainCounts } from './assist';
 import { outlook, Outlook } from '../ai/value';
 import { setSoundEnabled, sfx, unlockAudio } from './sound';
@@ -98,6 +99,9 @@ export class App implements GameUI {
   private hintCache: { pending: Pending; advice: Advice } | null = null;
   /** この対局での自分の成績 */
   private tally: RoundTally = emptyTally();
+  /** 役確認ウインドウを開いているか（開いている間は対局を一時停止） */
+  private yakuOpen = false;
+  private resumeWaiters: (() => void)[] = [];
   /** 対局ごとに増える番号（途中でやめた対局を見分ける） */
   private gameToken = 0;
   /** アニメーション済みの捨て牌・ツモ牌 */
@@ -274,8 +278,15 @@ export class App implements GameUI {
     this.render();
   }
 
-  delay(ms: number): Promise<void> {
-    return sleep(ms * this.settings.speed);
+  async delay(ms: number): Promise<void> {
+    await sleep(ms * this.settings.speed);
+    await this.whilePaused();
+  }
+
+  /** 役確認を開いている間は、ここで待つ */
+  private whilePaused(): Promise<void> {
+    if (!this.yakuOpen) return Promise.resolve();
+    return new Promise((r) => this.resumeWaiters.push(r));
   }
 
   async announce(seat: number, text: string): Promise<void> {
@@ -285,6 +296,7 @@ export class App implements GameUI {
     this.bubbles.set(seat, text);
     this.render();
     await sleep(Math.max(500, 900 * this.settings.speed));
+    await this.whilePaused();
     this.bubbles.delete(seat);
     this.render();
   }
@@ -348,6 +360,18 @@ export class App implements GameUI {
         this.render();
         return;
       }
+      case 'yaku-open':
+        this.yakuOpen = true;
+        this.render();
+        return;
+      case 'yaku-close': {
+        this.yakuOpen = false;
+        const waiters = this.resumeWaiters;
+        this.resumeWaiters = [];
+        this.render();
+        waiters.forEach((r) => r());
+        return;
+      }
       case 'quit':
         document.querySelector('.confirm-overlay')?.remove();
         document.body.insertAdjacentHTML('beforeend', `
@@ -372,6 +396,8 @@ export class App implements GameUI {
         this.pending = null;
         this.overlay = null;
         this.bubbles.clear();
+        this.yakuOpen = false;
+        this.resumeWaiters = [];
         trackEvent('game-quit', '途中終了');
         this.showStart();
         return;
@@ -513,6 +539,8 @@ export class App implements GameUI {
           ${this.toolbarHtml()}
           ${SPACE_DEBUG ? centerFreeHtml() : ''}
           <div class="controls">${this.controlsHtml(g)}</div>
+          <button class="yaku-btn" data-act="yaku-open">${furigana('役')}確認</button>
+          ${this.yakuOpen ? `<div class="yaku-panel">${yakuGuideHtml(g)}</div>` : ''}
         </div></div>
         <div class="me">
           <div class="my-melds">${g.players[0].melds.map((m) => meldHtml(m, 0, red)).join('')}</div>
@@ -595,7 +623,7 @@ export class App implements GameUI {
         ${chip('outlook', furigana('役') + '・期待値', a.outlook)}
         <button class="chip ${a.danger !== 'off' ? 'on' : ''} ${a.danger === 'true' ? 'cheat' : ''}" data-act="danger">${dangerLabel}</button>
         ${chip('remain', '残り枚数', a.remain)}
-        ${chip('open', furigana('手牌') + '公開', a.open)}
+        ${chip('open', 'カンニング', a.open)}
       </div>
       <div class="tools-help">${helpButton('assist')}</div>`;
   }

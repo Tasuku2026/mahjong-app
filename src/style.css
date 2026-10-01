@@ -715,3 +715,74 @@ ruby rt { font-size: .58em; color: var(--muted); font-weight: 400; letter-spacin
 .confirm-dialog .btns { display: flex; gap: 10px; }
 .confirm-dialog .btns button { flex: 1; }
 button.danger-solid { background: #b8433c; border-color: #b8433c; }
+
+/* 卓の左下: 役確認ボタン */
+.yaku-btn {
+  position: absolute;
+  left: 7%;
+  top: 67%;
+  height: 26px;
+  min-height: 0;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: .76rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: flex-end;
+  padding-bottom: 5px;
+  color: #241a05;
+  background: #f5d58a;
+  border: 1px solid #f2b33d;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .45);
+  z-index: 6;
+}
+.yaku-btn ruby rt { font-size: .55em; color: #5a4512; }
+
+/* 役確認ウインドウ（卓の手前） */
+.yaku-panel {
+  position: absolute;
+  inset: 2%;
+  z-index: 30;
+  background: rgba(19, 38, 30, .97);
+  border: 1px solid #3c5e4e;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .6);
+  overflow-y: auto;
+  padding: 10px 12px 14px;
+  font-size: .84rem;
+  --w: 18px;
+  animation: dialog-in .2s ease-out;
+}
+.yk-head { display: flex; align-items: center; justify-content: space-between; }
+.yk-head h2 { margin: 0; font-size: 1.1rem; }
+.yk-close { min-height: 0; width: 32px; height: 32px; padding: 0; border-radius: 50%; font-size: 1.1rem; }
+.yk-lead { color: var(--muted); font-size: .76rem; line-height: 1.7; margin: 6px 0 8px; }
+.yk-lead b { color: var(--text); }
+.yk-item { border-bottom: 1px solid #24443a; }
+.yk-item summary {
+  list-style: none;
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: 1.4em 1fr auto;
+  grid-template-areas: "mark name han" ". note note";
+  align-items: end;
+  gap: 0 6px;
+  padding: 6px 0;
+}
+.yk-item summary::-webkit-details-marker { display: none; }
+.yk-mark { grid-area: mark; font-weight: 800; text-align: center; }
+.yk-name { grid-area: name; font-weight: 800; }
+.yk-han { grid-area: han; font-size: .75rem; white-space: nowrap; }
+.yk-note { grid-area: note; color: var(--muted); font-size: .74rem; line-height: 1.8; }
+.yk-tag { margin-left: 4px; padding: 1px 5px; border-radius: 4px; background: var(--panel-2); color: var(--muted); font-size: .68rem; }
+.yk-tag.menzen { color: #ffcf7a; }
+.yk-desc { margin: 2px 0 6px 1.8em; line-height: 1.8; font-size: .8rem; }
+.yk-example { display: flex; flex-wrap: wrap; gap: 1px; margin: 0 0 8px 1.8em; }
+.fit-great .yk-mark, span.fit-great { color: #f2b33d; }
+.fit-good .yk-mark, span.fit-good { color: #8fd6a8; }
+.fit-far .yk-mark, span.fit-far { color: #9fb3aa; }
+.fit-none .yk-mark { color: #61766d; }
+.fit-no .yk-mark, span.fit-no { color: #d17a74; }
+.yk-item.fit-no .yk-name, .yk-item.fit-none .yk-name { opacity: .7; }
+.yk-yakuman { margin-top: 10px; }
+.yk-yakuman > summary { cursor: pointer; color: var(--accent); font-weight: 700; padding: 6px 0; }

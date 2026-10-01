@@ -26,7 +26,7 @@ const FIXED_RECTS: Rect[] = [
   [3, 72, 70.5, 95], // 操作ボタン（ポン・チーなどが2段になったときの最大範囲）
   [25, 94, 75, 100], // 操作欄の説明（最長の「リーチする牌を選んでください」）
 ];
-const MEASURED = ['.round-info', '.sound-btn', '.quit-btn', '.tools', '.tools-help'];
+const MEASURED = ['.round-info', '.sound-btn', '.quit-btn', '.tools', '.tools-help', '.yaku-btn'];
 
 function rotate([x1, y1, x2, y2]: Rect, seat: number): Rect {
   switch (seat) {
