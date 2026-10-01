@@ -26,6 +26,7 @@ npx vite-node scripts/strength.ts 40 1,4,7,10   # CPUレベル別の成績比較
 ## 決まりごと
 
 - 画面の文言・コード内コメントは日本語
+- 画面に出す麻雀用語にはふりがなを付ける（`src/ui/terms.ts` の `furigana()` / `kindRuby()` を通す。新しい用語は用語集 GLOSSARY に追加）
 - 設定項目を増やしたら `help.ts` に初心者向けの説明（？ボタン）も追加する
 - CPU の思考を変えたら `scripts/strength.ts` でレベルの強さの順番が崩れていないか確認する
 - 変更後は `npm test` と `npm run build` を通してから `main` に push する（push = 公開）
