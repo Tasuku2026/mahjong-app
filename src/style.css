@@ -439,10 +439,26 @@ button.chip.on.cheat { background: #b78cff; border-color: #b78cff; }
 .legend span { margin-left: 4px; }
 .legend.cheat { color: #cdb4ff; }
 
-/* 2段×18列に収める（スマホ幅でもスクロール不要） */
-.remain-grid { background: var(--panel); border-radius: 10px; padding: 5px 6px 6px; --w: min(calc((min(100vw, 640px) - 40px) / 18 - 1px), 28px); }
-.remain-grid .small { font-size: .72rem; }
-.r-row { display: flex; justify-content: center; gap: 1px; margin-top: 4px; }
+/* 縦書きの見出し + 2段×18列（スマホ幅でもスクロール不要） */
+.remain-grid {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--panel);
+  border-radius: 10px;
+  padding: 4px 6px;
+  --w: min(calc((min(100vw, 640px) - 58px) / 18 - 1px), 28px);
+}
+.remain-grid .r-title {
+  writing-mode: vertical-rl;
+  color: var(--muted);
+  font-size: .7rem;
+  letter-spacing: .1em;
+  flex: none;
+}
+.remain-grid .r-rows { flex: 1; }
+.r-row { display: flex; justify-content: center; gap: 1px; }
+.r-row + .r-row { margin-top: 3px; }
 .r-cell { display: flex; flex-direction: column; align-items: center; width: var(--w); }
 .r-cell span { font-weight: 800; font-size: max(10px, calc(var(--w) * 0.5)); line-height: 1.2; font-variant-numeric: tabular-nums; }
 .r-cell.zero .tile { opacity: .3; }
@@ -628,3 +644,74 @@ ruby rt { font-size: .58em; color: var(--muted); font-weight: 400; letter-spacin
 .outlook .o-nums small { color: var(--muted); font-size: .72rem; }
 .outlook .waits .o-label small { font-size: .9em; }
 .sel-note { color: var(--muted); font-size: .72rem; line-height: 2; }
+
+/* 操作欄は卓の中に重ねる: 説明の文字は自分の河の下、ボタンはその上（右下の補助ボタンを避ける） */
+.board .controls {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  max-width: none;
+  min-height: 0;
+  padding: 0;
+  display: block;
+  z-index: 7;
+  pointer-events: none;
+}
+.board .controls .info {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: .6%;
+  width: auto;
+  text-align: center;
+  font-size: max(11px, calc(var(--S) * 0.032));
+  line-height: 1.25;
+  color: var(--text);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .9);
+}
+.board .controls .ctl-buttons {
+  position: absolute;
+  left: 3%;
+  right: 29.5%;
+  bottom: calc(1.2% + max(14px, calc(var(--S) * 0.04)));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: flex-end;
+  gap: 6px;
+  pointer-events: none;
+}
+.board .controls .ctl-buttons:empty { display: none; }
+.board .controls button {
+  pointer-events: auto;
+  min-height: 36px;
+  padding: 5px 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .6);
+}
+.me { padding-top: 6px; }
+
+/* 卓の右上: 終了ボタン */
+.quit-btn {
+  position: absolute;
+  right: 1.2%;
+  top: 1.2%;
+  width: 10.5%;
+  height: 10.5%;
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, .3);
+  border: 1px solid rgba(255, 255, 255, .15);
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 6;
+}
+.quit-btn svg { width: 50%; height: 50%; }
+.confirm-dialog { max-width: 340px; }
+.confirm-dialog h2 { margin: 0 0 8px; font-size: 1.15rem; }
+.confirm-dialog p { color: var(--muted); line-height: 1.6; margin: 0 0 14px; }
+.confirm-dialog .btns { display: flex; gap: 10px; }
+.confirm-dialog .btns button { flex: 1; }
+button.danger-solid { background: #b8433c; border-color: #b8433c; }

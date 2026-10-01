@@ -23,8 +23,10 @@ const SEAT_RECTS: { rect: Rect; cpuOnly?: boolean }[] = [
 /** 回転しない要素（局・ドラ表示、音ボタン、補助ボタンは実際の位置を測る） */
 const FIXED_RECTS: Rect[] = [
   [33, 33, 67, 67], // 中央（残り枚数・供託・点数）
+  [3, 72, 70.5, 95], // 操作ボタン（ポン・チーなどが2段になったときの最大範囲）
+  [25, 94, 75, 100], // 操作欄の説明（最長の「リーチする牌を選んでください」）
 ];
-const MEASURED = ['.round-info', '.sound-btn', '.tools', '.tools-help'];
+const MEASURED = ['.round-info', '.sound-btn', '.quit-btn', '.tools', '.tools-help'];
 
 function rotate([x1, y1, x2, y2]: Rect, seat: number): Rect {
   switch (seat) {
@@ -173,7 +175,7 @@ export function paintLowerFree(root: HTMLElement): void {
   const bottom = window.innerHeight;
   const width = window.innerWidth;
   const used: DOMRect[] = [];
-  for (const sel of ['.assist', '.controls', '.my-melds']) {
+  for (const sel of ['.assist', '.my-melds']) {
     const el = root.querySelector(sel);
     if (el) used.push(el.getBoundingClientRect());
   }

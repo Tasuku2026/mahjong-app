@@ -17,9 +17,13 @@ export interface AssistSettings {
 
 export const DEFAULT_ASSIST: AssistSettings = { remain: false, hint: false, outlook: false, danger: 'off', open: false };
 
-/** 自分から見た各牌の残り枚数（見えていない枚数） */
-export function remainCounts(g: Game, seat = 0): number[] {
-  return g.visibleCounts(seat).map((v) => Math.max(0, 4 - v));
+/** 自分から見た各牌の残り枚数（見えていない枚数）。openHands のときは他家の手牌も見えているものとして数える */
+export function remainCounts(g: Game, seat = 0, openHands = false): number[] {
+  const v = g.visibleCounts(seat);
+  if (openHands) {
+    for (const p of g.players) if (p.seat !== seat) for (const t of p.hand) v[kindOf(t)]++;
+  }
+  return v.map((x) => Math.max(0, 4 - x));
 }
 
 export interface TileDanger {

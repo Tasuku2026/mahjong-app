@@ -62,10 +62,14 @@ function saveSettings(s: Settings): void {
   }
 }
 
+/** 決して終わらない Promise（やめた対局をそこで止める） */
+const never = <T>(): Promise<T> => new Promise<T>(() => {});
+
 class HumanAgent implements Agent {
-  constructor(private app: App) {}
+  constructor(private app: App, private live: () => boolean) {}
 
   async turn(g: Game, seat: number, opts: TurnOptions): Promise<TurnAction> {
+    if (!this.live()) return never();
     const p = g.players[seat];
     // リーチ後は和了・暗槓の選択肢がなければ自動でツモ切り
     if (p.riichi && !opts.canTsumo && opts.ankanKinds.length === 0) {
@@ -76,6 +80,7 @@ class HumanAgent implements Agent {
   }
 
   call(_g: Game, seat: number, tile: Tile, from: number, opts: CallOptions): Promise<CallAction> {
+    if (!this.live()) return never();
     return new Promise((resolve) => this.app.setPending({ kind: 'call', seat, tile, from, opts, resolve }));
   }
 }
@@ -93,6 +98,8 @@ export class App implements GameUI {
   private hintCache: { pending: Pending; advice: Advice } | null = null;
   /** この対局での自分の成績 */
   private tally: RoundTally = emptyTally();
+  /** 対局ごとに増える番号（途中でやめた対局を見分ける） */
+  private gameToken = 0;
   /** アニメーション済みの捨て牌・ツモ牌 */
   private animatedDiscard = '';
   private animatedDraw: Tile | null = null;
@@ -230,7 +237,16 @@ export class App implements GameUI {
 
   async startGame(): Promise<void> {
     const s = this.settings;
-    const human = new HumanAgent(this);
+    const token = ++this.gameToken;
+    const live = () => token === this.gameToken;
+    // この対局専用の窓口。終了ボタンでやめた後は、古い対局の処理がここで止まる
+    const ui: GameUI = {
+      update: () => { if (live()) this.update(); },
+      delay: (ms) => (live() ? this.delay(ms).then(() => (live() ? undefined : never<void>())) : never()),
+      announce: (seat, text) => (live() ? this.announce(seat, text) : never()),
+      showRoundResult: (game, r) => (live() ? this.showRoundResult(game, r) : never()),
+    };
+    const human = new HumanAgent(this, live);
     const players = [
       { name: 'あなた', isHuman: true, level: 0 },
       { name: `下家 Lv${levelLabel(s.levels[0])}`, isHuman: false, level: s.levels[0] },
@@ -238,7 +254,7 @@ export class App implements GameUI {
       { name: `上家 Lv${levelLabel(s.levels[2])}`, isHuman: false, level: s.levels[2] },
     ];
     const agents: Agent[] = [human, new CpuAgent(s.levels[0]), new CpuAgent(s.levels[1]), new CpuAgent(s.levels[2])];
-    const g = new Game({ ...s.rules }, players, agents, this);
+    const g = new Game({ ...s.rules }, players, agents, ui);
     this.game = g;
     this.tally = emptyTally();
     this.animatedDiscard = '';
@@ -246,6 +262,7 @@ export class App implements GameUI {
     trackEvent(`length-${s.rules.gameLength}`, s.rules.gameLength === 'tonpu' ? '東風戦' : '半荘戦');
     for (const l of s.levels) trackEvent(`cpu-level-${levelLabel(l)}`, `CPUレベル${levelLabel(l)}`);
     const standings = await g.run();
+    if (!live()) return;
     await this.showFinal(standings);
   }
 
@@ -331,6 +348,33 @@ export class App implements GameUI {
         this.render();
         return;
       }
+      case 'quit':
+        document.querySelector('.confirm-overlay')?.remove();
+        document.body.insertAdjacentHTML('beforeend', `
+          <div class="overlay help-overlay confirm-overlay" data-act="quit-no">
+            <div class="dialog confirm-dialog" role="alertdialog" aria-modal="true">
+              <h2>対局をやめますか？</h2>
+              <p>トップ画面に戻ります。この対局は最後まで終わっていないので、戦績には記録されません。</p>
+              <div class="btns">
+                <button data-act="quit-no">続ける</button>
+                <button class="danger-solid" data-act="quit-yes">やめる</button>
+              </div>
+            </div>
+          </div>`);
+        return;
+      case 'quit-no':
+        if (el.classList.contains('confirm-overlay') && e.target !== el) return;
+        document.querySelector('.confirm-overlay')?.remove();
+        return;
+      case 'quit-yes':
+        document.querySelector('.confirm-overlay')?.remove();
+        this.gameToken++;
+        this.pending = null;
+        this.overlay = null;
+        this.bubbles.clear();
+        trackEvent('game-quit', '途中終了');
+        this.showStart();
+        return;
       case 'sound': {
         this.settings.sound = !this.settings.sound;
         setSoundEnabled(this.settings.sound);
@@ -463,10 +507,13 @@ export class App implements GameUI {
           ${this.centerHtml(g)}
           ${[0, 1, 2, 3].map((s) => this.seatHtml(g, s)).join('')}
           ${this.soundButtonHtml()}
+          <button class="quit-btn" data-act="quit" aria-label="対局をやめてトップ画面に戻る">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+          </button>
           ${this.toolbarHtml()}
           ${SPACE_DEBUG ? centerFreeHtml() : ''}
+          <div class="controls">${this.controlsHtml(g)}</div>
         </div></div>
-        <div class="controls">${this.controlsHtml(g)}</div>
         <div class="me">
           <div class="my-melds">${g.players[0].melds.map((m) => meldHtml(m, 0, red)).join('')}</div>
           <div class="my-hand has-badges">${this.myHandHtml(g)}</div>
@@ -653,13 +700,14 @@ export class App implements GameUI {
     }
 
     if (a.remain) {
-      const rem = remainCounts(g);
+      // 手牌公開中は、見えているCPUの手牌も差し引く
+      const rem = remainCounts(g, 0, a.open);
       const cell = (k: number) => `<div class="r-cell ${rem[k] === 0 ? 'zero' : ''}">${tileHtml(k * 4 + 3)}<span>${rem[k]}</span></div>`;
       // 1段目: 萬子・筒子、2段目: 索子・字牌
       const rows = [[0, 18], [18, 34]].map(([s, e]) =>
         `<div class="r-row">${Array.from({ length: e - s }, (_, i) => cell(s + i)).join('')}</div>`).join('');
       // ほかの補助情報より先（パネルの一番上）に出す
-      parts.unshift(`<div class="remain-grid"><div class="muted small">残り枚数（あなたから見えていない枚数・暗い牌は0枚）</div>${rows}</div>`);
+      parts.unshift(`<div class="remain-grid"><div class="r-title">残り枚数</div><div class="r-rows">${rows}</div></div>`);
     }
     return parts.join('');
   }
@@ -712,7 +760,7 @@ export class App implements GameUI {
       for (const k of o.kakanKinds) b.push(btn(act?.type === 'kakan' && act.kind === k, '', `data-act="kakan" data-kind="${k}"`, `カン ${kindRuby(k)}`));
       if (o.canKyuushu) b.push(btn(act?.type === 'kyuushu', '', 'data-act="kyuushu"', furigana('九種九牌')));
       const hint = this.riichiMode ? 'リーチする牌を選んでください' : this.selected !== null ? 'もう一度タップで打牌' : '捨てる牌をタップ';
-      return `${b.join('')}<div class="info">${hint}</div>`;
+      return `<div class="ctl-buttons">${b.join('')}</div><div class="info">${hint}</div>`;
     }
     const o = pend.opts;
     const from = ['', '下家', '対面', '上家'][pend.from];
@@ -727,7 +775,7 @@ export class App implements GameUI {
     o.chi.forEach((v, i) => b.push(btn(act?.type === 'chi' && same(act.tiles, v), '', `data-act="chi" data-i="${i}"`, `チー${this.miniTiles(g, v)}`)));
     if (o.minkan) b.push(btn(act?.type === 'minkan', '', 'data-act="minkan"', 'カン'));
     b.push(btn(act?.type === 'pass', 'pass', 'data-act="pass"', 'スキップ'));
-    return `<div class="info">${furigana(from)}の ${kindRuby(kindOf(pend.tile))}</div>${b.join('')}`;
+    return `<div class="ctl-buttons">${b.join('')}</div><div class="info">${furigana(from)}の ${kindRuby(kindOf(pend.tile))}</div>`;
   }
 
   private miniTiles(g: Game, tiles: Tile[]): string {
