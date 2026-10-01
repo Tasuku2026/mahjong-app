@@ -1,4 +1,5 @@
-import { Tile, kindOf, suitOf, tileFace, HAKU, HATSU, CHUN } from '../core/tiles';
+import { Tile, kindOf, kindName } from '../core/tiles';
+import { tileSvg } from './tileArt';
 import { Meld } from '../core/types';
 
 export interface TileOpts {
@@ -13,22 +14,12 @@ export function tileHtml(t: Tile, o: TileOpts = {}): string {
   const k = kindOf(t);
   const cls = ['tile'];
   if (o.back) cls.push('back');
-  else {
-    const s = suitOf(k);
-    cls.push(['suit-m', 'suit-p', 'suit-s', 'honor'][s]);
-    if (k === HAKU) cls.push('haku');
-    if (k === HATSU) cls.push('hatsu');
-    if (k === CHUN) cls.push('chun');
-    if (o.red) cls.push('red');
-  }
+  else if (o.red) cls.push('red');
   if (o.classes) cls.push(...o.classes);
   const attrs = Object.entries(o.attrs ?? {}).map(([a, v]) => ` ${a}="${v}"`).join('');
-  let inner = '';
-  if (!o.back) {
-    const f = tileFace(k);
-    inner = k === HAKU ? '<span class="frame"></span>' : `<span class="t">${f.top}</span>${f.bottom ? `<span class="b">${f.bottom}</span>` : ''}`;
-  }
-  const el = `<div class="${cls.join(' ')}"${o.sideways ? '' : attrs}>${inner}</div>`;
+  const label = o.back ? '' : ` role="img" aria-label="${kindName(k)}${o.red ? '（赤）' : ''}"`;
+  const inner = o.back ? '' : tileSvg(k, !!o.red);
+  const el = `<div class="${cls.join(' ')}"${label}${o.sideways ? '' : attrs}>${inner}</div>`;
   return o.sideways ? `<div class="side"${attrs}>${el}</div>` : el;
 }
 
