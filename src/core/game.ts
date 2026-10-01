@@ -12,6 +12,8 @@ export interface RiverTile {
   riichi: boolean;
   /** 他家に鳴かれた */
   called: boolean;
+  /** 局内の通し番号（何番目の打牌か） */
+  seq: number;
 }
 
 export interface PlayerState {
@@ -32,6 +34,8 @@ export interface PlayerState {
   tempFuriten: boolean;
   riichiFuriten: boolean;
   discardCount: number;
+  /** リーチ宣言牌の通し番号（リーチしていなければ -1） */
+  riichiSeq: number;
   /** 鳴いた直後に切れない牌の種類（喰い替え禁止） */
   forbidden: Kind[];
 }
@@ -143,6 +147,8 @@ export class Game {
   current = 0;
   /** 直前の捨て牌（ハイライト用） */
   lastDiscard: { seat: number; index: number } | null = null;
+  /** 局内の打牌数 */
+  discardSeq = 0;
   ended = false;
   log: string[] = [];
 
@@ -154,7 +160,7 @@ export class Game {
     this.players = players.map((p, seat) => ({
       seat, name: p.name, isHuman: p.isHuman, level: p.level, score: rules.startScore,
       hand: [], drawn: null, melds: [], river: [], riichi: false, doubleRiichi: false, ippatsu: false,
-      tempFuriten: false, riichiFuriten: false, discardCount: 0, forbidden: [],
+      tempFuriten: false, riichiFuriten: false, discardCount: 0, riichiSeq: -1, forbidden: [],
     }));
   }
 
@@ -186,7 +192,10 @@ export class Game {
       const r = await this.playRound();
       this.ui.update();
       await this.ui.showRoundResult(this, r);
+      const before = { roundWind: this.roundWind, kyoku: this.kyoku, honba: this.honba };
       this.advance(r);
+      // 終了時は最後の局の表示のままにする
+      if (this.ended) Object.assign(this, before);
     }
     return this.standings();
   }
@@ -242,7 +251,7 @@ export class Game {
     }
     if (this.roundWind >= maxWind) {
       // 規定の局が終わった: 誰かが返し点に達していれば終了、そうでなければ延長（1場まで）
-      if (someoneReached || this.roundWind >= maxWind + 1) this.ended = true;
+      if (!this.rules.extension || someoneReached || this.roundWind >= maxWind + 1) this.ended = true;
     }
   }
 
@@ -272,7 +281,9 @@ export class Game {
       p.riichiFuriten = false;
       p.discardCount = 0;
       p.forbidden = [];
+      p.riichiSeq = -1;
     }
+    this.discardSeq = 0;
     for (let i = 0; i < 13; i++) {
       for (let s = 0; s < 4; s++) this.players[(this.dealer + s) % 4].hand.push(this.live.pop()!);
     }
@@ -339,7 +350,7 @@ export class Game {
       const firstTurn = p.discardCount === 0 && !this.callsHappened;
       p.hand.splice(p.hand.indexOf(tile), 1);
       sortTiles(p.hand);
-      p.river.push({ tile, tsumogiri: tile === p.drawn, riichi: declareRiichi, called: false });
+      p.river.push({ tile, tsumogiri: tile === p.drawn, riichi: declareRiichi, called: false, seq: this.discardSeq++ });
       p.drawn = null;
       p.discardCount++;
       p.forbidden = [];
@@ -355,6 +366,7 @@ export class Game {
       // リーチ成立
       if (declareRiichi) {
         p.riichi = true;
+        p.riichiSeq = p.river[p.river.length - 1].seq;
         p.doubleRiichi = firstTurn;
         p.ippatsu = true;
         p.score -= 1000;

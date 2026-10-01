@@ -143,7 +143,8 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
 /* ---------------- 対局画面 ---------------- */
 .game {
   --S: min(100vw, calc(100dvh - 200px), 640px);
-  min-height: 100dvh;
+  height: 100dvh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -394,3 +395,142 @@ button.help {
 .help-dialog dd { margin: 2px 0 0 0; line-height: 1.6; }
 .help-dialog .note { color: var(--muted); font-size: .88rem; }
 .help-dialog > button { width: 100%; margin-top: 12px; }
+
+/* ---------------- 補助機能 ---------------- */
+.toolbar {
+  width: 100%;
+  max-width: 640px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 8px 0;
+}
+button.chip {
+  min-height: 30px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: .8rem;
+  font-weight: 700;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid #3c5e4e;
+}
+button.chip.on { color: #241a05; background: var(--accent); border-color: var(--accent); }
+button.chip.on.cheat { background: #b78cff; border-color: #b78cff; }
+.toolbar button.help { margin-left: 2px; }
+
+.assist {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  width: 100%;
+  max-width: 640px;
+  padding: 0 10px;
+  font-size: .85rem;
+  --w: 18px;
+}
+.assist > * { margin-top: 8px; }
+.assist .muted, .muted { color: var(--muted); }
+.assist .small { font-size: .78rem; }
+.assist .warn { color: var(--minus); }
+.hint-line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; color: var(--accent); font-weight: 700; }
+.hint-line .fold { color: var(--muted); font-weight: 400; font-size: .78rem; }
+.outlook { background: var(--panel); border-radius: 10px; padding: 8px 10px; }
+.outlook .o-head { color: var(--muted); }
+.outlook .o-head b { color: var(--text); margin-left: 4px; }
+.outlook .o-yaku { font-weight: 700; margin: 2px 0 4px; }
+.outlook .o-nums { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.outlook .o-nums b { color: var(--accent); }
+.outlook .waits { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; --w: 20px; }
+.outlook .wait { display: flex; align-items: center; gap: 3px; }
+.outlook .wait small { line-height: 1.15; font-size: .7rem; color: var(--muted); }
+.legend { color: var(--muted); font-size: .78rem; line-height: 1.6; }
+.legend span { margin-left: 4px; }
+.legend.cheat { color: #cdb4ff; }
+
+.remain-grid { background: var(--panel); border-radius: 10px; padding: 6px 8px; --w: min(calc((100vw - 60px) / 9 * 0.62), 26px); }
+.r-row { display: flex; justify-content: center; gap: 4px; margin-top: 4px; }
+.r-cell { display: flex; flex-direction: column; align-items: center; gap: 1px; width: calc(var(--w) * 1.45); }
+.r-cell span { font-weight: 800; font-size: .8rem; font-variant-numeric: tabular-nums; }
+.r-cell.zero { opacity: .35; }
+
+/* 手牌のバッジ */
+.my-hand .slot { display: flex; flex-direction: column; align-items: center; }
+.my-hand .slot.drawn-slot { margin-left: calc(var(--w) * 0.35); }
+.my-hand .slot .tile.drawn { margin-left: 0; }
+.badges {
+  height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  font-size: max(9px, calc(var(--w) * 0.34));
+  line-height: 1;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.my-hand.has-badges .badges { height: 24px; margin-bottom: 2px; }
+.b-star { color: var(--accent); }
+.b-safe { color: var(--plus); }
+.b-low { color: #c8e07a; }
+.b-mid { color: #ffb347; }
+.b-high { color: var(--minus); }
+.b-hit { color: #fff; background: #d4283a; border-radius: 3px; padding: 0 2px; }
+.my-hand { padding-top: calc(var(--w) * 0.4 + 4px); }
+
+/* ---------------- アニメーション ---------------- */
+@keyframes discard-in {
+  0% { transform: translateY(60%) scale(1.35); opacity: 0; }
+  60% { transform: translateY(-6%) scale(1.04); opacity: 1; }
+  100% { transform: none; }
+}
+@keyframes discard-in-side {
+  0% { transform: translateY(calc(var(--w) * 0.18)) rotate(90deg) scale(1.35); opacity: 0; }
+  100% { transform: translateY(calc(var(--w) * 0.18)) rotate(90deg); opacity: 1; }
+}
+.tile.enter { animation: discard-in .28s cubic-bezier(.2, .8, .3, 1.2); }
+.side > .tile.enter { animation: discard-in-side .28s ease-out; }
+@keyframes draw-in {
+  from { transform: translateY(-40%); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+.my-hand .tile.draw-in { animation: draw-in .22s ease-out; }
+.my-hand .tile.draw-in.selected { animation: none; }
+@keyframes dialog-in {
+  from { transform: translateY(16px) scale(.97); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+.overlay .dialog { animation: dialog-in .25s ease-out; }
+.score .stick { animation: stick-glow 1.6s ease-in-out infinite alternate; }
+@keyframes stick-glow {
+  from { box-shadow: 0 0 0 rgba(255, 255, 255, 0); }
+  to { box-shadow: 0 0 calc(var(--S) * 0.012) rgba(255, 255, 255, .9); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tile.enter, .side > .tile.enter, .my-hand .tile.draw-in, .overlay .dialog, .score .stick, .bubble { animation: none !important; }
+}
+
+/* ---------------- スタート画面の追加ボタン・戦績 ---------------- */
+.start > button.big + button.big { margin-top: 10px; }
+button.secondary { background: var(--panel-2); }
+button.danger-btn { background: transparent; color: var(--minus); border-color: #6b3a3a; font-size: .95rem; }
+.stats-card h2 .muted { font-weight: 400; margin-left: 6px; }
+.stat-main { display: flex; gap: 12px; margin-bottom: 10px; }
+.stat-main > div { flex: 1; background: var(--panel-2); border-radius: 10px; padding: 8px 10px; }
+.stat-main span, .stat-grid span { display: block; color: var(--muted); font-size: .78rem; }
+.stat-main b { font-size: 1.5rem; font-variant-numeric: tabular-nums; }
+.rank-bars .rb { display: grid; grid-template-columns: 2.4em 1fr 7.5em; align-items: center; gap: 8px; font-size: .85rem; margin: 4px 0; }
+.rank-bars .bar { height: 10px; background: var(--panel-2); border-radius: 5px; overflow: hidden; }
+.rank-bars .bar i { display: block; height: 100%; border-radius: 5px; }
+.rank-bars i.r1 { background: var(--accent); }
+.rank-bars i.r2 { background: #8fc7a8; }
+.rank-bars i.r3 { background: #6d8f80; }
+.rank-bars i.r4 { background: #b8615c; }
+.rank-bars .num { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+.stat-grid b { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.recent td { font-size: .85rem; }
+.recent .rank-1 { color: var(--accent); font-weight: 800; }
+.recent .rank-4 { color: var(--minus); }

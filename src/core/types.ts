@@ -23,6 +23,8 @@ export interface Rules {
   tobi: boolean;
   /** オーラスの親のアガリやめ */
   agariYame: boolean;
+  /** 規定の局が終わっても誰も返し点に達していなければ延長（西入・南入） */
+  extension: boolean;
   startScore: number;
   returnScore: number;
 }
@@ -34,6 +36,7 @@ export const DEFAULT_RULES: Rules = {
   kiriage: false,
   tobi: true,
   agariYame: true,
+  extension: true,
   startScore: 25000,
   returnScore: 30000,
 };

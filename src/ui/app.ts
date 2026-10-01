@@ -6,6 +6,10 @@ import { DEFAULT_RULES, Rules } from '../core/types';
 import { CpuAgent } from '../ai/cpu';
 import { tileHtml, meldHtml } from './tileView';
 import { helpButton, helpDialogHtml } from './help';
+import { AssistSettings, DEFAULT_ASSIST, DangerMode, discardInfo, handDanger, recommend, remainCounts } from './assist';
+import { outlook, Outlook } from '../ai/value';
+import { setSoundEnabled, sfx, unlockAudio } from './sound';
+import { GameRecord, RoundTally, clearRecords, emptyTally, levelBand, loadRecords, saveRecord, summarize } from './stats';
 
 type Pending =
   | { kind: 'turn'; seat: number; opts: TurnOptions; resolve: (a: TurnAction) => void }
@@ -15,7 +19,20 @@ export interface Settings {
   rules: Rules;
   levels: [number, number, number];
   speed: number;
+  assist: AssistSettings;
+  sound: boolean;
 }
+
+type RuleKey = 'aka' | 'kuitan' | 'kiriage' | 'tobi' | 'agariYame' | 'extension';
+
+const RULE_ROWS: [RuleKey, string][] = [
+  ['aka', '赤ドラ'],
+  ['kuitan', '喰いタン'],
+  ['kiriage', '切り上げ満貫'],
+  ['tobi', 'トビ終了'],
+  ['agariYame', 'アガリやめ'],
+  ['extension', '延長戦（西入・南入）'],
+];
 
 const SETTINGS_KEY = 'mahjong-settings-v1';
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -23,12 +40,12 @@ const fmt = (n: number) => n.toLocaleString('ja-JP');
 const signed = (n: number) => (n > 0 ? `+${fmt(n)}` : n < 0 ? `−${fmt(-n)}` : '±0');
 
 function loadSettings(): Settings {
-  const def: Settings = { rules: { ...DEFAULT_RULES }, levels: [5, 5, 5], speed: 1 };
+  const def: Settings = { rules: { ...DEFAULT_RULES }, levels: [5, 5, 5], speed: 1, assist: { ...DEFAULT_ASSIST }, sound: true };
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (!raw) return def;
     const s = JSON.parse(raw);
-    return { ...def, ...s, rules: { ...def.rules, ...s.rules } };
+    return { ...def, ...s, rules: { ...def.rules, ...s.rules }, assist: { ...def.assist, ...s.assist } };
   } catch {
     return def;
   }
@@ -69,11 +86,22 @@ export class App implements GameUI {
   private riichiMode = false;
   private bubbles = new Map<number, string>();
   private overlay: { html: string; resolve: () => void } | null = null;
+  /** おすすめ打牌のキャッシュ（手番ごとに1回計算） */
+  private hintCache: { pending: Pending; tile: Tile; fold: boolean } | null = null;
+  /** この対局での自分の成績 */
+  private tally: RoundTally = emptyTally();
+  /** アニメーション済みの捨て牌・ツモ牌 */
+  private animatedDiscard = '';
+  private animatedDraw: Tile | null = null;
+  private animDiscard = false;
+  private animDraw = false;
 
   constructor(root: HTMLElement) {
     this.root = root;
     this.settings = loadSettings();
-    root.addEventListener('click', (e) => this.onClick(e));
+    setSoundEnabled(this.settings.sound);
+    // ヘルプは root の外（body 直下）に出すため document で受ける
+    document.addEventListener('click', (e) => this.onClick(e));
   }
 
   // ------------------------------------------------------------------
@@ -117,10 +145,64 @@ export class App implements GameUI {
         </section>
         <section class="card">
           <h2>ルール</h2>
-          <label class="row"><span>赤ドラ${helpButton('aka')}</span><input type="checkbox" id="aka" ${s.rules.aka ? 'checked' : ''}></label>
-          <label class="row"><span>喰いタン${helpButton('kuitan')}</span><input type="checkbox" id="kuitan" ${s.rules.kuitan ? 'checked' : ''}></label>
+          ${RULE_ROWS.map(([key, label]) => `
+            <label class="row"><span>${label}${helpButton(key)}</span><input type="checkbox" data-rule="${key}" ${s.rules[key] ? 'checked' : ''}></label>`).join('')}
+        </section>
+        <section class="card">
+          <h2>その他</h2>
+          <label class="row"><span>効果音</span><input type="checkbox" id="sound" ${s.sound ? 'checked' : ''}></label>
         </section>
         <button class="primary big" data-act="start">対局開始</button>
+        <button class="big secondary" data-act="stats">戦績を見る</button>
+      </div>`;
+  }
+
+  // ------------------------------------------------------------------
+  // 戦績画面
+  // ------------------------------------------------------------------
+
+  private showStats(): void {
+    const all = loadRecords();
+    const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
+    const block = (title: string, list: GameRecord[]) => {
+      if (list.length === 0) return '';
+      const m = summarize(list);
+      const max = Math.max(1, ...m.rankDist);
+      return `
+        <section class="card stats-card">
+          <h2>${title}<span class="muted"> ${m.games}戦</span></h2>
+          <div class="stat-main">
+            <div><span>平均順位</span><b>${m.avgRank.toFixed(2)}</b></div>
+            <div><span>合計ポイント</span><b class="${m.totalPoint >= 0 ? 'plus' : 'minus'}">${m.totalPoint > 0 ? '+' : ''}${m.totalPoint.toFixed(1)}</b></div>
+          </div>
+          <div class="rank-bars">
+            ${m.rankDist.map((n, i) => `
+              <div class="rb"><span>${i + 1}位</span><div class="bar"><i class="r${i + 1}" style="width:${(n / max) * 100}%"></i></div><span class="num">${n}回 (${pct(n / m.games)})</span></div>`).join('')}
+          </div>
+          <div class="stat-grid">
+            <div><span>和了率</span><b>${pct(m.winRate)}</b></div>
+            <div><span>放銃率</span><b>${pct(m.dealinRate)}</b></div>
+            <div><span>立直率</span><b>${pct(m.riichiRate)}</b></div>
+            <div><span>副露率</span><b>${pct(m.callRate)}</b></div>
+            <div><span>平均和了点</span><b>${fmt(Math.round(m.avgWin))}</b></div>
+          </div>
+        </section>`;
+    };
+    const bands = ['Lv1〜3', 'Lv4〜6', 'Lv7〜10'];
+    const recent = all.slice(-10).reverse().map((r) => `
+      <tr><td>${new Date(r.date).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}</td>
+      <td>${r.length === 'tonpu' ? '東風' : '半荘'}</td><td>Lv${r.levels.join('/')}</td>
+      <td class="num rank-${r.rank}">${r.rank}位</td><td class="num">${fmt(r.score)}</td></tr>`).join('');
+    this.root.innerHTML = `
+      <div class="start">
+        <h1>戦績</h1>
+        <p class="sub">この端末のブラウザに保存されています（${all.length}戦）</p>
+        ${all.length === 0 ? '<section class="card"><p>まだ記録がありません。対局を最後まで終えると記録されます。</p></section>' : ''}
+        ${block('すべて', all)}
+        ${bands.map((b) => block(`CPU ${b}`, all.filter((r) => levelBand(r.levels) === b))).join('')}
+        ${recent ? `<section class="card"><h2>最近の対局</h2><table class="scores recent">${recent}</table></section>` : ''}
+        <button class="primary big" data-act="title">戻る</button>
+        ${all.length ? '<button class="big danger-btn" data-act="clear-stats">戦績をリセット</button>' : ''}
       </div>`;
   }
 
@@ -129,8 +211,11 @@ export class App implements GameUI {
     const q = <T extends HTMLElement>(sel: string) => this.root.querySelector(sel) as T;
     s.rules.gameLength = q<HTMLSelectElement>('#len').value as Rules['gameLength'];
     s.speed = Number(q<HTMLSelectElement>('#speed').value);
-    s.rules.aka = q<HTMLInputElement>('#aka').checked;
-    s.rules.kuitan = q<HTMLInputElement>('#kuitan').checked;
+    this.root.querySelectorAll<HTMLInputElement>('[data-rule]').forEach((el) => {
+      s.rules[el.dataset.rule as RuleKey] = el.checked;
+    });
+    s.sound = q<HTMLInputElement>('#sound').checked;
+    setSoundEnabled(s.sound);
     this.root.querySelectorAll<HTMLSelectElement>('[data-level]').forEach((el) => {
       s.levels[Number(el.dataset.level)] = Number(el.value);
     });
@@ -149,6 +234,8 @@ export class App implements GameUI {
     const agents: Agent[] = [human, new CpuAgent(s.levels[0]), new CpuAgent(s.levels[1]), new CpuAgent(s.levels[2])];
     const g = new Game({ ...s.rules }, players, agents, this);
     this.game = g;
+    this.tally = emptyTally();
+    this.animatedDiscard = '';
     const standings = await g.run();
     await this.showFinal(standings);
   }
@@ -166,6 +253,9 @@ export class App implements GameUI {
   }
 
   async announce(seat: number, text: string): Promise<void> {
+    if (text === 'ロン' || text === 'ツモ') sfx.win();
+    else if (text === 'リーチ') sfx.riichi();
+    else sfx.call();
     this.bubbles.set(seat, text);
     this.render();
     await sleep(Math.max(500, 900 * this.settings.speed));
@@ -174,6 +264,18 @@ export class App implements GameUI {
   }
 
   showRoundResult(g: Game, r: RoundResult): Promise<void> {
+    const me = g.players[0];
+    const t = this.tally;
+    t.rounds++;
+    const myWin = r.wins.find((w) => w.seat === 0);
+    if (myWin) {
+      t.wins++;
+      t.winPoints += myWin.gain;
+    }
+    if (r.wins.some((w) => w.from === 0)) t.dealins++;
+    if (me.riichi) t.riichi++;
+    if (me.melds.some((m) => m.type !== 'ankan')) t.calls++;
+    if (r.type !== 'win') sfx.draw();
     return new Promise((resolve) => {
       this.overlay = { html: this.resultHtml(g, r), resolve };
       this.render();
@@ -213,18 +315,43 @@ export class App implements GameUI {
     const act = el.dataset.act!;
     const pend = this.pending;
     switch (act) {
+      case 'toggle': {
+        const key = el.dataset.key as 'remain' | 'hint' | 'outlook' | 'open';
+        this.settings.assist[key] = !this.settings.assist[key];
+        saveSettings(this.settings);
+        this.render();
+        return;
+      }
+      case 'danger': {
+        const order: DangerMode[] = ['off', 'est', 'true'];
+        const a = this.settings.assist;
+        a.danger = order[(order.indexOf(a.danger) + 1) % order.length];
+        saveSettings(this.settings);
+        this.render();
+        return;
+      }
       case 'help':
         // label 内のボタンなので、チェックボックスやセレクトが反応しないようにする
         e.preventDefault();
-        this.root.querySelector('.help-overlay')?.remove();
-        this.root.insertAdjacentHTML('beforeend', helpDialogHtml(el.dataset.help!));
+        document.querySelector('.help-overlay')?.remove();
+        document.body.insertAdjacentHTML('beforeend', helpDialogHtml(el.dataset.help!));
         return;
       case 'close-help':
         // ダイアログ本文のタップでは閉じない（背景か閉じるボタンのみ）
         if (el.classList.contains('help-overlay') && e.target !== el) return;
-        this.root.querySelector('.help-overlay')?.remove();
+        document.querySelector('.help-overlay')?.remove();
+        return;
+      case 'stats':
+        this.showStats();
+        return;
+      case 'clear-stats':
+        if (window.confirm('戦績をすべて削除します。よろしいですか？')) {
+          clearRecords();
+          this.showStats();
+        }
         return;
       case 'start':
+        unlockAudio();
         this.readStartForm();
         void this.startGame();
         return;
@@ -251,6 +378,7 @@ export class App implements GameUI {
           this.resolveTurn({ type: 'discard', tile: t, riichi: this.riichiMode });
         } else {
           this.selected = t;
+          sfx.select();
           this.render();
         }
         return;
@@ -298,19 +426,34 @@ export class App implements GameUI {
     const g = this.game;
     if (!g) return;
     const red = (t: Tile) => g.isRed(t);
+    // 再描画で補助パネルのスクロール位置が戻らないようにする
+    const scroll = this.root.querySelector('.assist')?.scrollTop ?? 0;
+    // 新しい捨て牌・ツモ牌だけアニメーションさせる（再描画のたびに動かないように）
+    const ld = g.lastDiscard;
+    const dKey = ld ? `${g.roundName}-${g.honba}-${ld.seat}-${ld.index}` : '';
+    this.animDiscard = dKey !== '' && dKey !== this.animatedDiscard;
+    if (this.animDiscard) sfx.discard();
+    this.animatedDiscard = dKey;
+    const drawn = g.players[0].drawn;
+    this.animDraw = drawn !== null && drawn !== this.animatedDraw;
+    this.animatedDraw = drawn;
     this.root.innerHTML = `
       <div class="game">
         <div class="board">
           ${this.centerHtml(g)}
           ${[0, 1, 2, 3].map((s) => this.seatHtml(g, s)).join('')}
         </div>
+        <div class="toolbar">${this.toolbarHtml()}</div>
+        <div class="assist">${this.assistHtml(g)}</div>
         <div class="controls">${this.controlsHtml(g)}</div>
         <div class="me">
           <div class="my-melds">${g.players[0].melds.map((m) => meldHtml(m, 0, red)).join('')}</div>
-          <div class="my-hand">${this.myHandHtml(g)}</div>
+          <div class="my-hand ${this.settings.assist.hint || this.settings.assist.danger !== 'off' ? 'has-badges' : ''}">${this.myHandHtml(g)}</div>
         </div>
         ${this.overlay ? `<div class="overlay"><div class="dialog">${this.overlay.html}</div></div>` : ''}
       </div>`;
+    const assist = this.root.querySelector('.assist');
+    if (assist) assist.scrollTop = scroll;
   }
 
   private centerHtml(g: Game): string {
@@ -335,13 +478,18 @@ export class App implements GameUI {
     const river = p.river.map((r, i) => {
       const cls: string[] = [];
       if (r.called) cls.push('called');
-      if (g.lastDiscard && g.lastDiscard.seat === seat && g.lastDiscard.index === i) cls.push('last');
+      if (g.lastDiscard && g.lastDiscard.seat === seat && g.lastDiscard.index === i) {
+        cls.push('last');
+        if (this.animDiscard) cls.push('enter');
+      }
       if (r.tsumogiri) cls.push('tsumogiri');
       return tileHtml(r.tile, { sideways: r.riichi, red: red(r.tile), classes: cls });
     }).join('');
     let handArea = '';
     if (seat !== 0) {
-      const backs = p.hand.map((t) => tileHtml(t, { back: true })).join('');
+      const open = this.settings.assist.open;
+      const shown = open ? p.hand.slice().sort((a, b) => a - b) : p.hand;
+      const backs = shown.map((t) => tileHtml(t, { back: !open, red: open && red(t) })).join('');
       handArea = `<div class="cpu-hand"><div class="tiles">${backs}</div>${p.melds.map((m) => meldHtml(m, seat, red)).join('')}</div>`;
     }
     const bubble = this.bubbles.get(seat);
@@ -358,19 +506,131 @@ export class App implements GameUI {
       </div>`;
   }
 
+  // ------------------------------------------------------------------
+  // 補助機能
+  // ------------------------------------------------------------------
+
+  private toolbarHtml(): string {
+    const a = this.settings.assist;
+    const chip = (key: string, label: string, on: boolean) =>
+      `<button class="chip ${on ? 'on' : ''}" data-act="toggle" data-key="${key}" aria-pressed="${on}">${label}</button>`;
+    const dangerLabel = { off: '危険度', est: '危険度：推定', true: '危険度：透視' }[a.danger];
+    return `
+      ${chip('hint', 'ヒント', a.hint)}
+      ${chip('outlook', '役・期待値', a.outlook)}
+      <button class="chip ${a.danger !== 'off' ? 'on' : ''} ${a.danger === 'true' ? 'cheat' : ''}" data-act="danger">${dangerLabel}</button>
+      ${chip('remain', '残り枚数', a.remain)}
+      ${chip('open', '手牌公開', a.open)}
+      ${helpButton('assist')}`;
+  }
+
+  /** おすすめ打牌（手番ごとにキャッシュ） */
+  private hint(g: Game): { tile: Tile; fold: boolean } | null {
+    const pend = this.pending;
+    if (!pend || pend.kind !== 'turn') return null;
+    if (this.hintCache?.pending !== pend) {
+      const r = recommend(g, pend.opts.discardable);
+      this.hintCache = { pending: pend, ...r };
+    }
+    return { tile: this.hintCache.tile, fold: this.hintCache.fold };
+  }
+
+  private dangerBadge(v: number, mode: DangerMode, hitBy: number[]): string {
+    if (mode === 'true') {
+      if (hitBy.length === 0) return '<span class="b-safe">安</span>';
+      const who = hitBy.map((s) => ['', '下', '対', '上'][s]).join('');
+      return `<span class="b-hit">当${who}</span>`;
+    }
+    if (v < 0.005) return '<span class="b-safe">安</span>';
+    const pct = Math.max(1, Math.round(v * 100));
+    const cls = v < 0.04 ? 'b-low' : v < 0.09 ? 'b-mid' : 'b-high';
+    return `<span class="${cls}">${pct}%</span>`;
+  }
+
+  private outlookHtml(g: Game, o: Outlook, head: string): string {
+    const shanten = o.shanten <= 0 ? (o.shanten === 0 ? 'テンパイ' : '和了') : `${o.shanten}向聴`;
+    const yaku = o.yaku.length ? o.yaku.join('・') : '<span class="warn">役がありません</span>';
+    let waits = '';
+    if (o.waits.length) {
+      waits = `<div class="waits">待ち ${o.waits.map((w) => `
+        <span class="wait">${tileHtml(w.kind * 4 + 3)}<small>残${w.remain}<br>${w.ron || w.tsumo ? `${fmt(Math.max(w.ron, w.tsumo))}` : '役なし'}</small></span>`).join('')}</div>`;
+    }
+    const riichiNote = o.assumeRiichi && o.shanten >= 0 ? '<small class="muted">（リーチした場合）</small>' : '';
+    return `
+      <div class="outlook">
+        <div class="o-head">${head}<b>${shanten}</b></div>
+        <div class="o-yaku">${yaku}</div>
+        <div class="o-nums">
+          <span>和了時 <b>${o.points ? `約${fmt(o.points)}点` : '—'}</b>${riichiNote}</span>
+          <span>和了率 <b>約${Math.round(o.winProb * 100)}%</b></span>
+          <span>期待値 <b>約${fmt(Math.round(o.ev / 100) * 100)}点</b></span>
+        </div>
+        ${waits}
+      </div>`;
+  }
+
+  private assistHtml(g: Game): string {
+    const a = this.settings.assist;
+    const parts: string[] = [];
+    const pend = this.pending?.kind === 'turn' ? this.pending : null;
+    const p = g.players[0];
+
+    if (a.hint && pend && !this.riichiMode && !p.riichi) {
+      const r = this.hint(g)!;
+      parts.push(`<div class="hint-line">★ おすすめ：${tileHtml(r.tile, { red: g.isRed(r.tile) })} を切る${r.fold ? '<span class="fold">（守備）相手の攻撃に備えて安全な牌を優先</span>' : ''}</div>`);
+    }
+
+    if (a.outlook) {
+      if (pend && this.selected !== null) {
+        const info = discardInfo(g, this.selected);
+        parts.push(this.outlookHtml(g, info.outlook, `${kindName(kindOf(this.selected))}を切ると：`) +
+          `<div class="muted small">受け入れ ${info.ukeire}枚</div>`);
+      } else if (pend) {
+        const r = this.hint(g) ?? { tile: pend.opts.discardable[0] };
+        const info = discardInfo(g, r.tile);
+        parts.push(this.outlookHtml(g, info.outlook, '最善の打牌をした場合：'));
+      } else if (p.hand.length % 3 === 1) {
+        parts.push(this.outlookHtml(g, outlook(g, 0), 'いまの手：'));
+      }
+    }
+
+    if (a.danger !== 'off') {
+      parts.push(a.danger === 'est'
+        ? '<div class="legend">危険度（推定）：見えている情報から、手牌の各牌でロンされる確率の目安を表示中　<span class="b-safe">安</span><span class="b-low">低</span><span class="b-mid">中</span><span class="b-high">高</span></div>'
+        : '<div class="legend cheat">危険度（透視）：相手の実際の手牌から計算中。<span class="b-hit">当</span> の牌を切るとロンされます</div>');
+    }
+
+    if (a.remain) {
+      const rem = remainCounts(g);
+      const cell = (k: number) => `<div class="r-cell ${rem[k] === 0 ? 'zero' : ''}">${tileHtml(k * 4 + 3)}<span>${rem[k]}</span></div>`;
+      const rows = [[0, 9], [9, 18], [18, 27], [27, 34]].map(([s, e]) =>
+        `<div class="r-row">${Array.from({ length: e - s }, (_, i) => cell(s + i)).join('')}</div>`).join('');
+      parts.push(`<div class="remain-grid"><div class="muted small">残り枚数（あなたから見えていない枚数）</div>${rows}</div>`);
+    }
+    return parts.join('');
+  }
+
   private myHandHtml(g: Game): string {
     const p = g.players[0];
     const pend = this.pending?.kind === 'turn' ? this.pending : null;
     const allowed = pend ? (this.riichiMode ? pend.opts.riichiTiles : pend.opts.discardable) : [];
     const drawn = p.drawn;
     const tiles = p.hand.filter((t) => t !== drawn);
+    const a = this.settings.assist;
+    const danger = a.danger !== 'off' ? handDanger(g, a.danger) : null;
+    const rec = pend && a.hint && !this.riichiMode ? this.hint(g) : null;
     const one = (t: Tile, extra: string[] = []) => {
       const cls = [...extra];
       if (pend) cls.push(allowed.includes(t) ? 'can' : 'dim');
       if (this.selected === t) cls.push('selected');
-      return tileHtml(t, { red: g.isRed(t), classes: cls, attrs: { 'data-act': 'tile', 'data-tile': t } });
+      const badges: string[] = [];
+      if (rec && kindOf(rec.tile) === kindOf(t)) badges.push('<span class="b-star">★</span>');
+      const d = danger?.get(kindOf(t));
+      if (d) badges.push(this.dangerBadge(d.value, a.danger, d.hitBy));
+      const tile = tileHtml(t, { red: g.isRed(t), classes: cls, attrs: { 'data-act': 'tile', 'data-tile': t } });
+      return `<div class="slot${extra.includes('drawn') ? ' drawn-slot' : ''}"><div class="badges">${badges.join('')}</div>${tile}</div>`;
     };
-    return tiles.map((t) => one(t)).join('') + (drawn !== null ? one(drawn, ['drawn']) : '');
+    return tiles.map((t) => one(t)).join('') + (drawn !== null ? one(drawn, this.animDraw ? ['drawn', 'draw-in'] : ['drawn']) : '');
   }
 
   private controlsHtml(g: Game): string {
@@ -466,7 +726,18 @@ export class App implements GameUI {
     const rows = st.map((x) => `
       <tr class="${x.seat === 0 ? 'me-row' : ''}"><td>${x.rank}位</td><td>${g.players[x.seat].name}</td>
       <td class="num">${fmt(x.score)}</td><td class="num ${x.point >= 0 ? 'plus' : 'minus'}">${x.point > 0 ? '+' : ''}${x.point.toFixed(1)}</td></tr>`).join('');
-    const myRank = st.find((x) => x.seat === 0)!.rank;
+    const mine = st.find((x) => x.seat === 0)!;
+    const myRank = mine.rank;
+    saveRecord({
+      date: new Date().toISOString(),
+      length: g.rules.gameLength,
+      levels: [...this.settings.levels],
+      rank: mine.rank,
+      score: mine.score,
+      point: mine.point,
+      ...this.tally,
+    });
+    if (myRank === 1) sfx.win();
     return new Promise((resolve) => {
       this.overlay = {
         html: `

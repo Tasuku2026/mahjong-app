@@ -1,7 +1,9 @@
 import { Agent, CallAction, CallOptions, Game, TurnAction, TurnOptions } from '../core/game';
-import { Kind, Tile, kindOf, toCounts, isHonor, isTerminal, isSimple, isDragon, isYaochu } from '../core/tiles';
+import { Kind, Tile, kindOf, toCounts, isHonor, isTerminal, isSimple, isDragon, isYaochu, suitOf } from '../core/tiles';
 import { calcShanten, getWaits } from '../core/shanten';
 import { meldIsOpen } from '../core/types';
+import { dangerMap, safeKinds, tenpaiProb, isDoraKind } from './danger';
+import { outlook, tenpaiWaits } from './value';
 
 export interface DiscardEval {
   tile: Tile;
@@ -34,6 +36,37 @@ export function evaluateDiscards(hand: Tile[], meldCount: number, unseen: number
   return out;
 }
 
+/**
+ * レベルごとの性格
+ * - mistake: 打牌をランダムに選ぶ確率
+ * - ukeire: 受け入れ枚数まで考えるか
+ * - value: ドラ・赤・役牌など打点を意識するか
+ * - defense: 0 なし / 1 リーチに現物でオリる / 2 筋・壁も使って危険度で判断 / 3 打点と危険度で押し引き
+ * - calls: 0 でたらめ / 1 役牌のみ / 2 役が確保できる鳴き / 3 打点や状況も考える
+ * - dama: 高い手はダマテンにする判断
+ */
+export interface Profile {
+  mistake: number;
+  ukeire: boolean;
+  value: boolean;
+  defense: 0 | 1 | 2 | 3;
+  calls: 0 | 1 | 2 | 3;
+  dama: boolean;
+}
+
+export function profileFor(level: number): Profile {
+  const L = Math.max(1, Math.min(10, Math.round(level)));
+  const mistake = [0.45, 0.32, 0.22, 0.14, 0.09, 0.06, 0.04, 0.02, 0.008, 0][L - 1];
+  return {
+    mistake,
+    ukeire: L >= 3,
+    value: L >= 5,
+    defense: L <= 4 ? 0 : L <= 6 ? 1 : L <= 8 ? 2 : 3,
+    calls: L <= 2 ? 0 : L <= 4 ? 1 : L <= 7 ? 2 : 3,
+    dama: L >= 8,
+  };
+}
+
 /** 孤立牌の切りやすさ（大きいほど先に切る） */
 function isolationScore(k: Kind, counts: number[], valuable: (k: Kind) => boolean): number {
   if (isHonor(k)) {
@@ -50,8 +83,14 @@ function isolationScore(k: Kind, counts: number[], valuable: (k: Kind) => boolea
   return score;
 }
 
+type Plan = 'free' | 'tanyao' | 'honitsu' | 'none';
+
 export class CpuAgent implements Agent {
-  constructor(public level: number) {}
+  readonly profile: Profile;
+
+  constructor(public level: number) {
+    this.profile = profileFor(level);
+  }
 
   private unseen(g: Game, seat: number): number[] {
     return g.visibleCounts(seat).map((v) => Math.max(0, 4 - v));
@@ -61,101 +100,256 @@ export class CpuAgent implements Agent {
     return (k: Kind) => isDragon(k) || k === g.seatWind(seat) || k === g.roundWindKind;
   }
 
-  /** レベルが低いほど選択ミスをする確率 */
-  private get mistakeRate(): number {
-    return Math.max(0, (10 - this.level) * 0.07);
+  /** 鳴いている手が、どの役を目指しているか */
+  private plan(g: Game, seat: number): Plan {
+    const p = g.players[seat];
+    if (!p.melds.some(meldIsOpen)) return 'free';
+    const valuable = this.valuable(g, seat);
+    if (p.melds.some((m) => m.type !== 'chi' && valuable(kindOf(m.tiles[0])))) return 'free';
+    const counts = toCounts(p.hand);
+    if ([27, 28, 29, 30, 31, 32, 33].some((k) => valuable(k) && counts[k] >= 2)) return 'free';
+    const meldKinds = p.melds.flatMap((m) => m.tiles.map(kindOf));
+    if (g.rules.kuitan && meldKinds.every(isSimple)) return 'tanyao';
+    const suits = new Set(meldKinds.filter((k) => !isHonor(k)).map(suitOf));
+    if (suits.size <= 1) return 'honitsu';
+    return 'none';
+  }
+
+  /** 最大の脅威（リーチ者など）の大きさ */
+  private threat(g: Game, seat: number): number {
+    let t = 0;
+    for (let o = 0; o < 4; o++) if (o !== seat) t = Math.max(t, tenpaiProb(g, o));
+    return t;
   }
 
   async turn(g: Game, seat: number, opts: TurnOptions): Promise<TurnAction> {
     await g.ui.delay(550);
     const p = g.players[seat];
+    const pr = this.profile;
     if (opts.canTsumo) return { type: 'tsumo' };
     if (opts.canKyuushu) {
       const counts = toCounts(p.hand);
       let n = 0;
       for (let k = 0; k < 34; k++) if (isYaochu(k) && counts[k] > 0) n++;
-      if (n >= 10 || this.level <= 3) return { type: 'kyuushu' };
+      // 上級者は国士無双が狙えそうなら続行する
+      if (!(pr.defense >= 2 && n >= 11)) return { type: 'kyuushu' };
     }
     if (p.riichi) {
       if (opts.ankanKinds.length > 0) return { type: 'ankan', kind: opts.ankanKinds[0] };
       return { type: 'discard', tile: opts.discardable[0] };
     }
 
-    const unseen = this.unseen(g, seat);
     const counts = toCounts(p.hand);
     const curShanten = calcShanten(counts, p.melds.length);
+    const threat = this.threat(g, seat);
+    const defending = pr.defense > 0 && threat >= 0.55;
 
-    // 暗槓・加槓: 向聴数が悪くならなければする
-    for (const k of opts.ankanKinds) {
-      const c = counts.slice();
-      c[k] = 0;
-      if (calcShanten(c, p.melds.length + 1) <= curShanten) return { type: 'ankan', kind: k };
-    }
-    for (const k of opts.kakanKinds) {
-      const c = counts.slice();
-      c[k]--;
-      if (calcShanten(c, p.melds.length) <= curShanten) return { type: 'kakan', kind: k };
-    }
-
-    const tile = this.chooseDiscard(g, seat, opts.discardable, unseen);
-
-    if (opts.riichiTiles.length > 0) {
-      // 最も待ち枚数が多くなるリーチ打牌
-      let best: Tile | null = null;
-      let bestWait = -1;
-      for (const t of opts.riichiTiles) {
+    // 暗槓・加槓: 向聴数が悪くならず、守備中でなければする
+    if (!defending) {
+      for (const k of opts.ankanKinds) {
         const c = counts.slice();
-        c[kindOf(t)]--;
-        const w = getWaits(c, p.melds.length).reduce((a, k) => a + unseen[k], 0);
-        if (w > bestWait) {
-          bestWait = w;
-          best = t;
-        }
+        c[k] = 0;
+        if (calcShanten(c, p.melds.length + 1) <= curShanten) return { type: 'ankan', kind: k };
       }
-      if (best !== null && (bestWait > 0 || this.level <= 4)) return { type: 'discard', tile: best, riichi: true };
+      for (const k of opts.kakanKinds) {
+        const c = counts.slice();
+        c[k]--;
+        if (calcShanten(c, p.melds.length) <= curShanten) return { type: 'kakan', kind: k };
+      }
+    }
+
+    const { tile, fold } = this.decideDiscard(g, seat, opts.discardable);
+
+    // リーチ判断
+    if (opts.riichiTiles.length > 0 && !fold) {
+      const r = this.chooseRiichi(g, seat, opts.riichiTiles);
+      if (r !== null) return { type: 'discard', tile: r, riichi: true };
+      // ダマを選んだ場合は、テンパイを維持する打牌
+      const keep = opts.riichiTiles.includes(tile) ? tile : this.bestTenpaiDiscard(g, seat, opts.riichiTiles);
+      return { type: 'discard', tile: keep };
     }
     return { type: 'discard', tile };
   }
 
-  chooseDiscard(g: Game, seat: number, candidates: Tile[], unseen: number[]): Tile {
+  /** 打牌を決める。fold: オリを選んだか */
+  decideDiscard(g: Game, seat: number, candidates: Tile[]): { tile: Tile; fold: boolean } {
     const p = g.players[seat];
+    const pr = this.profile;
+    const unseen = this.unseen(g, seat);
     const evals = evaluateDiscards(p.hand, p.melds.length, unseen, candidates);
-    if (Math.random() < this.mistakeRate) {
-      return evals[Math.floor(Math.random() * evals.length)].tile;
+
+    if (Math.random() < pr.mistake) {
+      return { tile: evals[Math.floor(Math.random() * evals.length)].tile, fold: false };
     }
+
+    const bestShanten = Math.min(...evals.map((e) => e.shanten));
+    const threat = this.threat(g, seat);
+
+    // ---- 守備 ----
+    if (pr.defense > 0 && threat >= (pr.defense === 1 ? 1 : 0.55)) {
+      const fold = this.shouldFold(g, seat, evals, bestShanten);
+      if (fold) {
+        const danger = this.dangerFor(g, seat);
+        evals.sort((a, b) => {
+          const d = danger[kindOf(a.tile)] - danger[kindOf(b.tile)];
+          if (Math.abs(d) > 1e-6) return d;
+          if (a.shanten !== b.shanten) return a.shanten - b.shanten;
+          return b.ukeire - a.ukeire;
+        });
+        return { tile: evals[0].tile, fold: true };
+      }
+    }
+
+    // ---- 攻撃 ----
     const counts = toCounts(p.hand);
     const valuable = this.valuable(g, seat);
-    const isOpen = p.melds.some(meldIsOpen);
+    const plan = this.plan(g, seat);
+    const offPlan = (k: Kind): number => {
+      if (plan === 'tanyao') return isYaochu(k) ? 1 : 0;
+      if (plan === 'honitsu') {
+        const meldSuit = p.melds.flatMap((m) => m.tiles.map(kindOf)).find((x) => !isHonor(x));
+        const s = meldSuit !== undefined ? suitOf(meldSuit) : -1;
+        return !isHonor(k) && s >= 0 && suitOf(k) !== s ? 1 : 0;
+      }
+      return 0;
+    };
+    // 相手の気配があるときは、同じ向聴数の中で危険度も考える（上級者）
+    const danger = pr.defense >= 2 && threat >= 0.15 ? dangerMap(g, seat) : null;
+    const score = (e: DiscardEval): number => {
+      const k = kindOf(e.tile);
+      let s = pr.ukeire ? e.ukeire : 0;
+      if (pr.value) {
+        if (isDoraKind(g, k)) s -= 4;
+        if (g.isRed(e.tile)) s -= 4;
+        if (isHonor(k) && valuable(k) && counts[k] === 2) s -= 6;
+      }
+      if (danger) s -= danger[k] * 250 * threat;
+      return s;
+    };
     evals.sort((a, b) => {
       if (a.shanten !== b.shanten) return a.shanten - b.shanten;
-      if (a.ukeire !== b.ukeire) return b.ukeire - a.ukeire;
+      const op = offPlan(kindOf(b.tile)) - offPlan(kindOf(a.tile));
+      if (op !== 0) return op;
+      const d = score(b) - score(a);
+      if (Math.abs(d) > 1e-6) return d;
       const ka = kindOf(a.tile);
       const kb = kindOf(b.tile);
-      let sa = isolationScore(ka, counts, valuable);
-      let sb = isolationScore(kb, counts, valuable);
-      // 鳴いてタンヤオを狙っているときは幺九牌を優先して切る
-      if (isOpen) {
-        sa += isSimple(ka) ? 0 : 1;
-        sb += isSimple(kb) ? 0 : 1;
-      }
-      // 赤ドラは残す
-      if (g.isRed(a.tile)) sa -= 1;
-      if (g.isRed(b.tile)) sb -= 1;
-      return sb - sa;
+      return isolationScore(kb, counts, valuable) - isolationScore(ka, counts, valuable);
     });
+    return { tile: evals[0].tile, fold: false };
+  }
+
+  /** 危険度。レベル5〜6は現物だけを安全とみなす */
+  private dangerFor(g: Game, seat: number): number[] {
+    if (this.profile.defense >= 2) return dangerMap(g, seat);
+    const out = new Array(34).fill(0);
+    for (let o = 0; o < 4; o++) {
+      if (o === seat || !g.players[o].riichi) continue;
+      const safe = safeKinds(g, o);
+      for (let k = 0; k < 34; k++) if (!safe.has(k)) out[k] += isHonor(k) ? 0.5 : 1;
+    }
+    return out;
+  }
+
+  private shouldFold(g: Game, seat: number, evals: DiscardEval[], bestShanten: number): boolean {
+    const pr = this.profile;
+    if (pr.defense === 1) return bestShanten >= 2;
+    const p = g.players[seat];
+    const best = evals.filter((e) => e.shanten === bestShanten).sort((a, b) => b.ukeire - a.ukeire)[0];
+    const hand13 = p.hand.slice();
+    hand13.splice(hand13.indexOf(best.tile), 1);
+    const o = outlook(g, seat, hand13);
+    if (pr.defense === 2) {
+      if (bestShanten === 0) return o.points === 0 && p.melds.some(meldIsOpen); // 役なしテンパイはオリ
+      if (bestShanten === 1) return o.points < 8000;
+      return true;
+    }
+    // defense 3: 打点・和了率・巡目で押し引き
+    const turnsLeft = Math.floor(g.live.length / 4);
+    let push: boolean;
+    if (bestShanten === 0) {
+      const remain = o.waits.reduce((a, w) => a + (w.ron > 0 || w.tsumo > 0 ? w.remain : 0), 0);
+      push = remain > 0 && (o.points >= 2000 || remain >= 4);
+    } else if (bestShanten === 1) {
+      push = turnsLeft >= 4 && (o.points >= 7700 || (o.points >= 3900 && best.ukeire >= 16 && turnsLeft >= 7));
+    } else {
+      push = false;
+    }
+    // オーラスで大きくリードしている子は無理をしない
+    if (push && this.isComfortableLead(g, seat) && o.points < 8000) push = false;
+    return !push;
+  }
+
+  private isComfortableLead(g: Game, seat: number): boolean {
+    const maxWind = g.rules.gameLength === 'tonpu' ? 1 : 2;
+    const allLast = g.roundWind >= maxWind - 1 && g.kyoku === 3;
+    if (!allLast || seat === g.dealer) return false;
+    const me = g.players[seat].score;
+    const second = Math.max(...g.players.filter((q) => q.seat !== seat).map((q) => q.score));
+    return me - second >= 12000;
+  }
+
+  /** リーチするならその打牌、ダマならnull */
+  private chooseRiichi(g: Game, seat: number, riichiTiles: Tile[]): Tile | null {
+    const p = g.players[seat];
+    const pr = this.profile;
+    const unseen = this.unseen(g, seat);
+    let best: Tile | null = null;
+    let bestScore = -1;
+    for (const t of riichiTiles) {
+      const hand13 = p.hand.slice();
+      hand13.splice(hand13.indexOf(t), 1);
+      const waits = getWaits(toCounts(hand13), p.melds.length);
+      const remain = waits.reduce((a, k) => a + unseen[k], 0);
+      let sc = remain;
+      if (pr.value) {
+        const wv = tenpaiWaits(g, seat, hand13, unseen, true);
+        sc = wv.reduce((a, w) => a + w.remain * Math.max(w.ron, w.tsumo), 0) / 1000 + remain * 0.5;
+      }
+      if (sc > bestScore) {
+        bestScore = sc;
+        best = t;
+      }
+    }
+    if (best === null) return null;
+    if (pr.dama) {
+      const hand13 = p.hand.slice();
+      hand13.splice(hand13.indexOf(best), 1);
+      const dama = tenpaiWaits(g, seat, hand13, unseen, false);
+      const remain = dama.reduce((a, w) => a + w.remain, 0);
+      if (remain === 0) return null; // 待ちが残っていない
+      const damaYaku = dama.every((w) => w.ron > 0);
+      const damaPts = dama.reduce((a, w) => Math.max(a, w.ron), 0);
+      const lateGame = g.live.length < 10;
+      if (damaYaku && (damaPts >= 7700 || lateGame)) return null;
+    }
+    return best;
+  }
+
+  private bestTenpaiDiscard(g: Game, seat: number, riichiTiles: Tile[]): Tile {
+    const unseen = this.unseen(g, seat);
+    const p = g.players[seat];
+    const evals = evaluateDiscards(p.hand, p.melds.length, unseen, riichiTiles);
+    evals.sort((a, b) => b.ukeire - a.ukeire);
     return evals[0].tile;
   }
 
   async call(g: Game, seat: number, tile: Tile, _from: number, opts: CallOptions): Promise<CallAction> {
     if (opts.canRon) return { type: 'ron' };
-    if (this.level <= 2 && Math.random() < 0.15) {
-      if (opts.pon.length) return { type: 'pon', tiles: opts.pon[0] };
-      if (opts.chi.length) return { type: 'chi', tiles: opts.chi[0] };
-    }
+    const pr = this.profile;
     const p = g.players[seat];
     const k = kindOf(tile);
     const valuable = this.valuable(g, seat);
+
+    if (pr.calls === 0) {
+      if (opts.pon.length && (valuable(k) || Math.random() < 0.3)) return { type: 'pon', tiles: opts.pon[0] };
+      if (opts.chi.length && Math.random() < 0.2) return { type: 'chi', tiles: opts.chi[0] };
+      return { type: 'pass' };
+    }
+
     const curShanten = calcShanten(toCounts(p.hand), p.melds.length);
+    const threat = this.threat(g, seat);
+    if (pr.defense >= 2 && threat >= 0.55 && curShanten >= 1) return { type: 'pass' };
 
     const shantenAfter = (used: Tile[]): number => {
       const rest = p.hand.slice();
@@ -163,23 +357,48 @@ export class CpuAgent implements Agent {
       return calcShanten(toCounts(rest), p.melds.length + 1);
     };
 
-    // 役の見込みがあるか
-    const hasYakuhaiMeld = p.melds.some((m) => valuable(kindOf(m.tiles[0])) && m.type !== 'chi');
-    const tanyaoPossible = (used: Tile[]): boolean => {
-      if (!g.rules.kuitan) return false;
-      if (!isSimple(k)) return false;
-      if (p.melds.some((m) => m.tiles.some((t) => !isSimple(kindOf(t))))) return false;
+    // 役牌のポン
+    for (const used of opts.pon) {
+      if (valuable(k) && shantenAfter(used) <= curShanten) return { type: 'pon', tiles: used };
+    }
+    if (pr.calls === 1) return { type: 'pass' };
+
+    // 鳴いた後に役が残るか
+    const yakuAfter = (used: Tile[]): boolean => {
       const rest = p.hand.filter((t) => !used.includes(t));
-      return rest.filter((t) => !isSimple(kindOf(t))).length <= 2;
+      const meldKinds = [...p.melds.flatMap((m) => m.tiles.map(kindOf)), k, ...used.map(kindOf)];
+      if (p.melds.some((m) => m.type !== 'chi' && valuable(kindOf(m.tiles[0])))) return true;
+      const restCounts = toCounts(rest);
+      if ([27, 28, 29, 30, 31, 32, 33].some((x) => valuable(x) && restCounts[x] >= 2)) return true;
+      // 喰いタン
+      if (g.rules.kuitan && meldKinds.every(isSimple) && rest.filter((t) => isYaochu(kindOf(t))).length <= 2) return true;
+      // 混一色・清一色
+      const all = [...rest.map(kindOf), ...meldKinds];
+      const suitCount = [0, 0, 0];
+      for (const x of all) if (!isHonor(x)) suitCount[suitOf(x)]++;
+      const main = suitCount.indexOf(Math.max(...suitCount));
+      const off = suitCount.reduce((a, b, i) => (i === main ? a : a + b), 0);
+      const meldsInSuit = meldKinds.every((x) => isHonor(x) || suitOf(x) === main);
+      return meldsInSuit && off <= 2;
     };
 
-    for (const used of opts.pon) {
-      if (valuable(k)) return { type: 'pon', tiles: used };
-      if ((hasYakuhaiMeld || tanyaoPossible(used)) && shantenAfter(used) < curShanten) return { type: 'pon', tiles: used };
-    }
-    for (const used of opts.chi) {
-      if ((hasYakuhaiMeld || tanyaoPossible(used)) && shantenAfter(used) < curShanten) return { type: 'chi', tiles: used };
-    }
+    const accept = (used: Tile[]): boolean => {
+      const after = shantenAfter(used);
+      if (after >= curShanten) return false;
+      if (!yakuAfter(used)) return false;
+      if (pr.calls === 3) {
+        const closed = !p.melds.some(meldIsOpen);
+        // 門前でまだ遠い手は、安い鳴きを控える
+        if (closed && after >= 2) {
+          const pts = outlook(g, seat).points;
+          if (pts < 2000) return false;
+        }
+      }
+      return true;
+    };
+
+    for (const used of opts.pon) if (accept(used)) return { type: 'pon', tiles: used };
+    for (const used of opts.chi) if (accept(used)) return { type: 'chi', tiles: used };
     return { type: 'pass' };
   }
 }
