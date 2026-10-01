@@ -10,7 +10,7 @@ import { AssistSettings, DEFAULT_ASSIST, DangerMode, Advice, adviseCall, adviseT
 import { outlook, Outlook } from '../ai/value';
 import { setSoundEnabled, sfx, unlockAudio } from './sound';
 import { analyticsEnabled, trackEvent } from './analytics';
-import { SPACE_DEBUG, freeSpaceHtml } from './debugSpace';
+import { SPACE_DEBUG, centerFreeHtml, freeSpaceHtml, paintLowerFree } from './debugSpace';
 import { GameRecord, RoundTally, clearRecords, emptyTally, levelBand, loadRecords, saveRecord, summarize } from './stats';
 
 type Pending =
@@ -450,7 +450,7 @@ export class App implements GameUI {
         <div class="board-wrap ${SPACE_DEBUG ? 'space-debug' : ''}"><div class="board">
           ${this.centerHtml(g)}
           ${[0, 1, 2, 3].map((s) => this.seatHtml(g, s)).join('')}
-          ${SPACE_DEBUG ? freeSpaceHtml() : ''}
+          ${SPACE_DEBUG ? freeSpaceHtml() + centerFreeHtml() : ''}
         </div></div>
         <div class="toolbar">${this.toolbarHtml()}</div>
         <div class="assist">${this.assistHtml(g)}</div>
@@ -463,6 +463,7 @@ export class App implements GameUI {
       </div>`;
     const assist = this.root.querySelector('.assist');
     if (assist) assist.scrollTop = scroll;
+    if (SPACE_DEBUG) paintLowerFree(this.root);
   }
 
   private centerHtml(g: Game): string {

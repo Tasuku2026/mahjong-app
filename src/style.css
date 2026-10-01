@@ -409,7 +409,7 @@ button.help {
 }
 button.chip {
   min-height: 28px;
-  padding: 3px 8px;
+  padding: 3px 6px;
   border-radius: 999px;
   font-size: .74rem;
   font-weight: 700;
@@ -557,3 +557,6 @@ button.danger-btn { background: transparent; color: var(--minus); border-color: 
 .board-wrap { width: 100%; display: flex; justify-content: center; flex: none; }
 .board-wrap.space-debug { background: rgba(255, 105, 180, .55); }
 .free-space { position: absolute; background: rgba(255, 105, 180, .55); pointer-events: none; z-index: 4; }
+.free-space.blue { background: rgba(80, 200, 255, .55); }
+/* 危険度ボタンは表示が変わっても幅を固定（ボタン列がずれないように） */
+button.chip[data-act="danger"] { min-width: calc(6em + 14px); }
