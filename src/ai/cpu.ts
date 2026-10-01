@@ -143,6 +143,11 @@ export class CpuAgent implements Agent {
 
   async turn(g: Game, seat: number, opts: TurnOptions): Promise<TurnAction> {
     await g.ui.delay(550);
+    return this.decideTurn(g, seat, opts);
+  }
+
+  /** 手番の行動を決める（待ち時間なし。ヒント表示にも使う） */
+  decideTurn(g: Game, seat: number, opts: TurnOptions): TurnAction {
     const p = g.players[seat];
     const pr = this.profile;
     if (opts.canTsumo) return { type: 'tsumo' };
@@ -425,7 +430,12 @@ export class CpuAgent implements Agent {
     return evals[0].tile;
   }
 
-  async call(g: Game, seat: number, tile: Tile, _from: number, opts: CallOptions): Promise<CallAction> {
+  async call(g: Game, seat: number, tile: Tile, from: number, opts: CallOptions): Promise<CallAction> {
+    return this.decideCall(g, seat, tile, from, opts);
+  }
+
+  /** 鳴き・ロンの判断（ヒント表示にも使う） */
+  decideCall(g: Game, seat: number, tile: Tile, _from: number, opts: CallOptions): CallAction {
     if (opts.canRon) return { type: 'ron' };
     const pr = this.profile;
     const p = g.players[seat];

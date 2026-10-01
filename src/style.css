@@ -538,3 +538,22 @@ button.danger-btn { background: transparent; color: var(--minus); border-color: 
 .recent .rank-1 { color: var(--accent); font-weight: 800; }
 .recent .rank-4 { color: var(--minus); }
 .privacy { color: var(--muted); font-size: .75rem; line-height: 1.6; margin-top: 16px; text-align: center; }
+.controls button { position: relative; }
+.controls button.rec { box-shadow: 0 0 0 2px var(--accent); }
+.controls button.rec::after {
+  content: "★";
+  position: absolute;
+  top: -9px;
+  right: -7px;
+  font-size: .8rem;
+  line-height: 1;
+  color: #241a05;
+  background: var(--accent);
+  border-radius: 50%;
+  padding: 2px 3px;
+}
+
+/* 【確認用・あとで削除】常に空いているスペース（?space=1 のときだけ） */
+.board-wrap { width: 100%; display: flex; justify-content: center; flex: none; }
+.board-wrap.space-debug { background: rgba(255, 105, 180, .55); }
+.free-space { position: absolute; background: rgba(255, 105, 180, .55); pointer-events: none; z-index: 4; }

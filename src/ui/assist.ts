@@ -1,5 +1,5 @@
 // プレイヤー向けの補助情報（残り枚数・危険度・ヒント・役と期待値）
-import { Game } from '../core/game';
+import { CallAction, CallOptions, Game, TurnAction, TurnOptions } from '../core/game';
 import { Kind, Tile, kindOf } from '../core/tiles';
 import { CpuAgent, evaluateDiscards } from '../ai/cpu';
 import { dangerByOpponent, exactHits } from '../ai/danger';
@@ -67,7 +67,17 @@ export function discardInfo(g: Game, tile: Tile, seat = 0): DiscardInfo {
 
 const hintAgent = new CpuAgent(10);
 
-/** おすすめの打牌（レベル10のCPUと同じ考え方） */
-export function recommend(g: Game, candidates: Tile[], seat = 0): { tile: Tile; fold: boolean } {
-  return hintAgent.decideDiscard(g, seat, candidates);
+/** ヒント（レベル10のCPUと同じ判断） */
+export type Advice =
+  | { kind: 'turn'; action: TurnAction; fold: boolean }
+  | { kind: 'call'; action: CallAction };
+
+export function adviseTurn(g: Game, opts: TurnOptions, seat = 0): Advice {
+  const action = hintAgent.decideTurn(g, seat, opts);
+  const fold = action.type === 'discard' && !action.riichi && hintAgent.decideDiscard(g, seat, opts.discardable).fold;
+  return { kind: 'turn', action, fold };
+}
+
+export function adviseCall(g: Game, tile: Tile, from: number, opts: CallOptions, seat = 0): Advice {
+  return { kind: 'call', action: hintAgent.decideCall(g, seat, tile, from, opts) };
 }

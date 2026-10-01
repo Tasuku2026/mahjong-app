@@ -6,10 +6,11 @@ import { DEFAULT_RULES, Rules } from '../core/types';
 import { CpuAgent, LEVEL_KAMI, LEVEL_ONI, levelLabel } from '../ai/cpu';
 import { tileHtml, meldHtml } from './tileView';
 import { helpButton, helpDialogHtml } from './help';
-import { AssistSettings, DEFAULT_ASSIST, DangerMode, discardInfo, handDanger, recommend, remainCounts } from './assist';
+import { AssistSettings, DEFAULT_ASSIST, DangerMode, Advice, adviseCall, adviseTurn, discardInfo, handDanger, remainCounts } from './assist';
 import { outlook, Outlook } from '../ai/value';
 import { setSoundEnabled, sfx, unlockAudio } from './sound';
 import { analyticsEnabled, trackEvent } from './analytics';
+import { SPACE_DEBUG, freeSpaceHtml } from './debugSpace';
 import { GameRecord, RoundTally, clearRecords, emptyTally, levelBand, loadRecords, saveRecord, summarize } from './stats';
 
 type Pending =
@@ -88,7 +89,7 @@ export class App implements GameUI {
   private bubbles = new Map<number, string>();
   private overlay: { html: string; resolve: () => void } | null = null;
   /** おすすめ打牌のキャッシュ（手番ごとに1回計算） */
-  private hintCache: { pending: Pending; tile: Tile; fold: boolean } | null = null;
+  private hintCache: { pending: Pending; advice: Advice } | null = null;
   /** この対局での自分の成績 */
   private tally: RoundTally = emptyTally();
   /** アニメーション済みの捨て牌・ツモ牌 */
@@ -446,16 +447,17 @@ export class App implements GameUI {
     this.animatedDraw = drawn;
     this.root.innerHTML = `
       <div class="game">
-        <div class="board">
+        <div class="board-wrap ${SPACE_DEBUG ? 'space-debug' : ''}"><div class="board">
           ${this.centerHtml(g)}
           ${[0, 1, 2, 3].map((s) => this.seatHtml(g, s)).join('')}
-        </div>
+          ${SPACE_DEBUG ? freeSpaceHtml() : ''}
+        </div></div>
         <div class="toolbar">${this.toolbarHtml()}</div>
         <div class="assist">${this.assistHtml(g)}</div>
         <div class="controls">${this.controlsHtml(g)}</div>
         <div class="me">
           <div class="my-melds">${g.players[0].melds.map((m) => meldHtml(m, 0, red)).join('')}</div>
-          <div class="my-hand ${this.settings.assist.hint || this.settings.assist.danger !== 'off' ? 'has-badges' : ''}">${this.myHandHtml(g)}</div>
+          <div class="my-hand has-badges">${this.myHandHtml(g)}</div>
         </div>
         ${this.overlay ? `<div class="overlay"><div class="dialog">${this.overlay.html}</div></div>` : ''}
       </div>`;
@@ -531,15 +533,74 @@ export class App implements GameUI {
       ${helpButton('assist')}`;
   }
 
-  /** おすすめ打牌（手番ごとにキャッシュ） */
-  private hint(g: Game): { tile: Tile; fold: boolean } | null {
+  /** おすすめ（手番・鳴き確認ごとにキャッシュ） */
+  private hint(g: Game): Advice | null {
     const pend = this.pending;
-    if (!pend || pend.kind !== 'turn') return null;
+    if (!pend) return null;
     if (this.hintCache?.pending !== pend) {
-      const r = recommend(g, pend.opts.discardable);
-      this.hintCache = { pending: pend, ...r };
+      const advice = pend.kind === 'turn'
+        ? adviseTurn(g, pend.opts)
+        : adviseCall(g, pend.tile, pend.from, pend.opts);
+      this.hintCache = { pending: pend, advice };
     }
-    return { tile: this.hintCache.tile, fold: this.hintCache.fold };
+    return this.hintCache.advice;
+  }
+
+  /** ヒントが勧める捨て牌（打牌以外を勧めるときは null） */
+  private hintTile(g: Game): Tile | null {
+    const adv = this.settings.assist.hint ? this.hint(g) : null;
+    if (adv?.kind !== 'turn' || adv.action.type !== 'discard') return null;
+    // リーチ牌を選んでいる間は、リーチを勧めているときだけ★を出す
+    if (this.riichiMode && !adv.action.riichi) return null;
+    return adv.action.tile;
+  }
+
+  /** ヒントの文章 */
+  private hintLineHtml(g: Game, adv: Advice): string {
+    const t = (tile: Tile) => tileHtml(tile, { red: g.isRed(tile) });
+    const k = (kind: number) => tileHtml(kind * 4 + 3);
+    let msg: string;
+    let note = '';
+    if (adv.kind === 'turn') {
+      const a = adv.action;
+      const pend = this.pending?.kind === 'turn' ? this.pending : null;
+      switch (a.type) {
+        case 'tsumo': msg = 'ツモで和了'; break;
+        case 'kyuushu':
+          msg = '九種九牌で流局にする';
+          note = '幺九牌が9種類以上あり、和了が遠い';
+          break;
+        case 'ankan':
+        case 'kakan': msg = `${k(a.kind)} をカン`; break;
+        default:
+          if (a.riichi) {
+            msg = `リーチして ${t(a.tile)} を切る`;
+          } else if (pend && pend.opts.riichiTiles.length > 0) {
+            msg = `ダマテン（リーチしない）で ${t(a.tile)} を切る`;
+            note = '役があって十分高い・終盤など、リーチしないほうが得な場面';
+          } else {
+            msg = `${t(a.tile)} を切る`;
+          }
+          if (adv.fold) note = '（守備）相手の攻撃に備えて安全な牌を優先';
+      }
+    } else {
+      const a = adv.action;
+      switch (a.type) {
+        case 'ron': msg = 'ロンで和了'; break;
+        case 'pon': msg = `ポン（${a.tiles.map(t).join('')} を使う）`; break;
+        case 'chi': msg = `チー（${a.tiles.map(t).join('')} を使う）`; break;
+        case 'minkan': msg = 'カン'; break;
+        default:
+          msg = 'スキップ（鳴かない）';
+      }
+    }
+    return `<div class="hint-line">★ おすすめ：${msg}${note ? `<span class="fold">${note}</span>` : ''}</div>`;
+  }
+
+  /** 勧めているボタンに★を付ける */
+  private recBtn(on: boolean, label: string): { cls: string; label: string } {
+    // ★はボタンの角に重ねて表示する（ボタンの幅が変わらないように）
+    return { cls: on ? 'rec' : '', label };
   }
 
   private dangerBadge(v: number, mode: DangerMode, hitBy: number[]): string {
@@ -582,9 +643,8 @@ export class App implements GameUI {
     const pend = this.pending?.kind === 'turn' ? this.pending : null;
     const p = g.players[0];
 
-    if (a.hint && pend && !this.riichiMode && !p.riichi) {
-      const r = this.hint(g)!;
-      parts.push(`<div class="hint-line">★ おすすめ：${tileHtml(r.tile, { red: g.isRed(r.tile) })} を切る${r.fold ? '<span class="fold">（守備）相手の攻撃に備えて安全な牌を優先</span>' : ''}</div>`);
+    if (a.hint && this.pending) {
+      parts.push(this.hintLineHtml(g, this.hint(g)!));
     }
 
     if (a.outlook) {
@@ -593,8 +653,8 @@ export class App implements GameUI {
         parts.push(this.outlookHtml(g, info.outlook, `${kindName(kindOf(this.selected))}を切ると：`) +
           `<div class="muted small">受け入れ ${info.ukeire}枚</div>`);
       } else if (pend) {
-        const r = this.hint(g) ?? { tile: pend.opts.discardable[0] };
-        const info = discardInfo(g, r.tile);
+        const tile = this.hintTile(g) ?? pend.opts.discardable[0];
+        const info = discardInfo(g, tile);
         parts.push(this.outlookHtml(g, info.outlook, '最善の打牌をした場合：'));
       } else if (p.hand.length % 3 === 1) {
         parts.push(this.outlookHtml(g, outlook(g, 0), 'いまの手：'));
@@ -627,13 +687,13 @@ export class App implements GameUI {
     const tiles = p.hand.filter((t) => t !== drawn);
     const a = this.settings.assist;
     const danger = a.danger !== 'off' ? handDanger(g, a.danger) : null;
-    const rec = pend && a.hint && !this.riichiMode ? this.hint(g) : null;
+    const recTile = pend ? this.hintTile(g) : null;
     const one = (t: Tile, extra: string[] = []) => {
       const cls = [...extra];
       if (pend) cls.push(allowed.includes(t) ? 'can' : 'dim');
       if (this.selected === t) cls.push('selected');
       const badges: string[] = [];
-      if (rec && kindOf(rec.tile) === kindOf(t)) badges.push('<span class="b-star">★</span>');
+      if (recTile !== null && kindOf(recTile) === kindOf(t)) badges.push('<span class="b-star">★</span>');
       const d = danger?.get(kindOf(t));
       if (d) badges.push(this.dangerBadge(d.value, a.danger, d.hitBy));
       const tile = tileHtml(t, { red: g.isRed(t), classes: cls, attrs: { 'data-act': 'tile', 'data-tile': t } });
@@ -650,23 +710,35 @@ export class App implements GameUI {
       return waits.length ? `<div class="info">待ち: ${waits.map(kindName).join(' ')}${g.isFuriten(p, waits) ? '（フリテン）' : ''}</div>` : '';
     }
     const b: string[] = [];
+    const adv = this.settings.assist.hint ? this.hint(g) : null;
     if (pend.kind === 'turn') {
       const o = pend.opts;
-      if (o.canTsumo) b.push('<button class="win" data-act="tsumo">ツモ</button>');
-      if (o.riichiTiles.length) b.push(`<button class="${this.riichiMode ? 'on' : ''}" data-act="riichi">リーチ</button>`);
-      for (const k of o.ankanKinds) b.push(`<button data-act="ankan" data-kind="${k}">カン ${kindName(k)}</button>`);
-      for (const k of o.kakanKinds) b.push(`<button data-act="kakan" data-kind="${k}">カン ${kindName(k)}</button>`);
-      if (o.canKyuushu) b.push('<button data-act="kyuushu">九種九牌</button>');
+      const act = adv?.kind === 'turn' ? adv.action : null;
+      const btn = (on: boolean, base: string, attrs: string, label: string) => {
+        const r = this.recBtn(on, label);
+        return `<button class="${base} ${r.cls}" ${attrs}>${r.label}</button>`;
+      };
+      if (o.canTsumo) b.push(btn(act?.type === 'tsumo', 'win', 'data-act="tsumo"', 'ツモ'));
+      if (o.riichiTiles.length) b.push(btn(act?.type === 'discard' && !!act.riichi, this.riichiMode ? 'on' : '', 'data-act="riichi"', 'リーチ'));
+      for (const k of o.ankanKinds) b.push(btn(act?.type === 'ankan' && act.kind === k, '', `data-act="ankan" data-kind="${k}"`, `カン ${kindName(k)}`));
+      for (const k of o.kakanKinds) b.push(btn(act?.type === 'kakan' && act.kind === k, '', `data-act="kakan" data-kind="${k}"`, `カン ${kindName(k)}`));
+      if (o.canKyuushu) b.push(btn(act?.type === 'kyuushu', '', 'data-act="kyuushu"', '九種九牌'));
       const hint = this.riichiMode ? 'リーチする牌を選んでください' : this.selected !== null ? 'もう一度タップで打牌' : '捨てる牌をタップ';
       return `${b.join('')}<div class="info">${hint}</div>`;
     }
     const o = pend.opts;
     const from = ['', '下家', '対面', '上家'][pend.from];
-    if (o.canRon) b.push('<button class="win" data-act="ron">ロン</button>');
-    o.pon.forEach((v, i) => b.push(`<button data-act="pon" data-i="${i}">ポン${o.pon.length > 1 ? this.miniTiles(g, v) : ''}</button>`));
-    o.chi.forEach((v, i) => b.push(`<button data-act="chi" data-i="${i}">チー${this.miniTiles(g, v)}</button>`));
-    if (o.minkan) b.push('<button data-act="minkan">カン</button>');
-    b.push('<button class="pass" data-act="pass">スキップ</button>');
+    const act = adv?.kind === 'call' ? adv.action : null;
+    const same = (x: Tile[], y: Tile[]) => x.length === y.length && x.every((t) => y.includes(t));
+    const btn = (on: boolean, base: string, attrs: string, label: string) => {
+      const r = this.recBtn(on, label);
+      return `<button class="${base} ${r.cls}" ${attrs}>${r.label}</button>`;
+    };
+    if (o.canRon) b.push(btn(act?.type === 'ron', 'win', 'data-act="ron"', 'ロン'));
+    o.pon.forEach((v, i) => b.push(btn(act?.type === 'pon' && same(act.tiles, v), '', `data-act="pon" data-i="${i}"`, `ポン${o.pon.length > 1 ? this.miniTiles(g, v) : ''}`)));
+    o.chi.forEach((v, i) => b.push(btn(act?.type === 'chi' && same(act.tiles, v), '', `data-act="chi" data-i="${i}"`, `チー${this.miniTiles(g, v)}`)));
+    if (o.minkan) b.push(btn(act?.type === 'minkan', '', 'data-act="minkan"', 'カン'));
+    b.push(btn(act?.type === 'pass', 'pass', 'data-act="pass"', 'スキップ'));
     return `<div class="info">${from}の ${kindName(kindOf(pend.tile))}</div>${b.join('')}`;
   }
 
