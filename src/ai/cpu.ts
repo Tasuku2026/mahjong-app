@@ -1,8 +1,8 @@
 import { Agent, CallAction, CallOptions, Game, TurnAction, TurnOptions } from '../core/game';
 import { Kind, Tile, kindOf, toCounts, isHonor, isTerminal, isSimple, isDragon, isYaochu, suitOf } from '../core/tiles';
-import { calcShanten, getWaits } from '../core/shanten';
+import { calcShanten, containsWin, getWaits } from '../core/shanten';
 import { meldIsOpen } from '../core/types';
-import { dangerMap, safeKinds, tenpaiProb, isDoraKind } from './danger';
+import { dangerMap, exactHits, safeKinds, tenpaiProb, isDoraKind } from './danger';
 import { outlook, tenpaiWaits } from './value';
 
 export interface DiscardEval {
@@ -44,6 +44,7 @@ export function evaluateDiscards(hand: Tile[], meldCount: number, unseen: number
  * - defense: 0 なし / 1 リーチに現物でオリる / 2 筋・壁も使って危険度で判断 / 3 打点と危険度で押し引き
  * - calls: 0 でたらめ / 1 役牌のみ / 2 役が確保できる鳴き / 3 打点や状況も考える
  * - dama: 高い手はダマテンにする判断
+ * - sight: 0 ふつう / 1 相手の手牌が見える（鬼） / 2 山も含めてすべて見える（神）
  */
 export interface Profile {
   mistake: number;
@@ -52,9 +53,21 @@ export interface Profile {
   defense: 0 | 1 | 2 | 3;
   calls: 0 | 1 | 2 | 3;
   dama: boolean;
+  sight: 0 | 1 | 2;
+}
+
+/** 特別レベル */
+export const LEVEL_ONI = 11;
+export const LEVEL_KAMI = 12;
+
+export function levelLabel(level: number): string {
+  if (level === LEVEL_ONI) return '鬼';
+  if (level === LEVEL_KAMI) return '神';
+  return String(level);
 }
 
 export function profileFor(level: number): Profile {
+  const sight = (level >= LEVEL_KAMI ? 2 : level >= LEVEL_ONI ? 1 : 0) as 0 | 1 | 2;
   const L = Math.max(1, Math.min(10, Math.round(level)));
   const mistake = [0.45, 0.32, 0.22, 0.14, 0.09, 0.06, 0.04, 0.02, 0.008, 0][L - 1];
   return {
@@ -64,6 +77,7 @@ export function profileFor(level: number): Profile {
     defense: L <= 4 ? 0 : L <= 6 ? 1 : L <= 8 ? 2 : 3,
     calls: L <= 2 ? 0 : L <= 4 ? 1 : L <= 7 ? 2 : 3,
     dama: L >= 8,
+    sight,
   };
 }
 
@@ -92,8 +106,13 @@ export class CpuAgent implements Agent {
     this.profile = profileFor(level);
   }
 
+  /** 山から引ける可能性のある枚数。鬼・神は相手の手牌にある牌も除く */
   private unseen(g: Game, seat: number): number[] {
-    return g.visibleCounts(seat).map((v) => Math.max(0, 4 - v));
+    const v = g.visibleCounts(seat);
+    if (this.profile.sight >= 1) {
+      for (const p of g.players) if (p.seat !== seat) for (const t of p.hand) v[kindOf(t)]++;
+    }
+    return v.map((x) => Math.max(0, 4 - x));
   }
 
   private valuable(g: Game, seat: number) {
@@ -142,7 +161,7 @@ export class CpuAgent implements Agent {
     const counts = toCounts(p.hand);
     const curShanten = calcShanten(counts, p.melds.length);
     const threat = this.threat(g, seat);
-    const defending = pr.defense > 0 && threat >= 0.55;
+    const defending = pr.sight === 0 && pr.defense > 0 && threat >= 0.55;
 
     // 暗槓・加槓: 向聴数が悪くならず、守備中でなければする
     if (!defending) {
@@ -159,6 +178,14 @@ export class CpuAgent implements Agent {
     }
 
     const { tile, fold } = this.decideDiscard(g, seat, opts.discardable);
+
+    // 鬼・神: 決めた打牌（安全牌）のままリーチできるときだけリーチする
+    if (pr.sight >= 1) {
+      if (opts.riichiTiles.includes(tile) && !fold && this.sightRiichiOk(g, seat, tile)) {
+        return { type: 'discard', tile, riichi: true };
+      }
+      return { type: 'discard', tile };
+    }
 
     // リーチ判断
     if (opts.riichiTiles.length > 0 && !fold) {
@@ -185,8 +212,27 @@ export class CpuAgent implements Agent {
     const bestShanten = Math.min(...evals.map((e) => e.shanten));
     const threat = this.threat(g, seat);
 
+    // ---- 鬼・神: 相手の手牌が見えるので、当たり牌だけを正確に避けて攻める ----
+    let pool = evals;
+    let sightFold = false;
+    if (pr.sight >= 1) {
+      const hits = exactHits(g, seat);
+      const safe = evals.filter((e) => hits[kindOf(e.tile)].length === 0);
+      if (safe.length > 0) pool = safe;
+      else {
+        // すべて当たり牌: 当たる人数が最も少ない牌
+        pool = evals.slice().sort((a, b) => hits[kindOf(a.tile)].length - hits[kindOf(b.tile)].length).slice(0, 1);
+        sightFold = true;
+      }
+      // 神: 山の並びから、最も早く和了できる打牌に絞る
+      if (pr.sight >= 2 && !sightFold) {
+        const fast = this.fastestByWall(g, seat, pool);
+        if (fast.length > 0) pool = fast;
+      }
+    }
+
     // ---- 守備 ----
-    if (pr.defense > 0 && threat >= (pr.defense === 1 ? 1 : 0.55)) {
+    if (pr.sight === 0 && pr.defense > 0 && threat >= (pr.defense === 1 ? 1 : 0.55)) {
       const fold = this.shouldFold(g, seat, evals, bestShanten);
       if (fold) {
         const danger = this.dangerFor(g, seat);
@@ -214,7 +260,7 @@ export class CpuAgent implements Agent {
       return 0;
     };
     // 相手の気配があるときは、同じ向聴数の中で危険度も考える（上級者）
-    const danger = pr.defense >= 2 && threat >= 0.15 ? dangerMap(g, seat) : null;
+    const danger = pr.sight === 0 && pr.defense >= 2 && threat >= 0.15 ? dangerMap(g, seat) : null;
     const score = (e: DiscardEval): number => {
       const k = kindOf(e.tile);
       let s = pr.ukeire ? e.ukeire : 0;
@@ -226,7 +272,7 @@ export class CpuAgent implements Agent {
       if (danger) s -= danger[k] * 250 * threat;
       return s;
     };
-    evals.sort((a, b) => {
+    pool.sort((a, b) => {
       if (a.shanten !== b.shanten) return a.shanten - b.shanten;
       const op = offPlan(kindOf(b.tile)) - offPlan(kindOf(a.tile));
       if (op !== 0) return op;
@@ -236,7 +282,52 @@ export class CpuAgent implements Agent {
       const kb = kindOf(b.tile);
       return isolationScore(kb, counts, valuable) - isolationScore(ka, counts, valuable);
     });
-    return { tile: evals[0].tile, fold: false };
+    return { tile: pool[0].tile, fold: sightFold };
+  }
+
+  /**
+   * 鬼: 待ちが山に残っていればリーチ。
+   * 神: この先ツモる牌の中に待ち牌があればリーチ（リーチ後は手を変えられないため）
+   */
+  private sightRiichiOk(g: Game, seat: number, tile: Tile): boolean {
+    const p = g.players[seat];
+    const c = toCounts(p.hand);
+    c[kindOf(tile)]--;
+    const waits = getWaits(c, p.melds.length);
+    if (this.profile.sight >= 2) {
+      for (let i = g.live.length - 4; i >= 0; i -= 4) if (waits.includes(kindOf(g.live[i]))) return true;
+      return false;
+    }
+    const unseen = this.unseen(g, seat);
+    return waits.some((k) => unseen[k] > 0);
+  }
+
+  /**
+   * 神: 自分がこの先ツモる牌（鳴きが入らなければ4枚ごと）を見て、
+   * 最も早いツモで和了形が作れる打牌候補を返す（どれも和了できなければ空）
+   */
+  private fastestByWall(g: Game, seat: number, pool: DiscardEval[]): DiscardEval[] {
+    const p = g.players[seat];
+    const draws: Kind[] = [];
+    for (let i = g.live.length - 4; i >= 0; i -= 4) draws.push(kindOf(g.live[i]));
+    let best = Infinity;
+    const steps = new Map<DiscardEval, number>();
+    for (const e of pool) {
+      const c = toCounts(p.hand);
+      c[kindOf(e.tile)]--;
+      let t = Infinity;
+      for (let i = 0; i < draws.length && i < best; i++) {
+        c[draws[i]]++;
+        if (containsWin(c, p.melds.length)) {
+          t = i;
+          break;
+        }
+      }
+      steps.set(e, t);
+      best = Math.min(best, t);
+    }
+    if (best === Infinity) return [];
+    return pool.filter((e) => steps.get(e) === best);
   }
 
   /** 危険度。レベル5〜6は現物だけを安全とみなす */
@@ -349,7 +440,9 @@ export class CpuAgent implements Agent {
 
     const curShanten = calcShanten(toCounts(p.hand), p.melds.length);
     const threat = this.threat(g, seat);
-    if (pr.defense >= 2 && threat >= 0.55 && curShanten >= 1) return { type: 'pass' };
+    // 神は鳴くとツモ順が変わるので鳴かない
+    if (pr.sight >= 2) return { type: 'pass' };
+    if (pr.sight === 0 && pr.defense >= 2 && threat >= 0.55 && curShanten >= 1) return { type: 'pass' };
 
     const shantenAfter = (used: Tile[]): number => {
       const rest = p.hand.slice();

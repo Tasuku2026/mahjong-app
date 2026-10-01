@@ -94,3 +94,14 @@ describe('役と点数', () => {
     expect(r.yaku.map((y) => y.name)).toContain('役牌 白');
   });
 });
+
+describe('containsWin', () => {
+  it('余分な牌があっても和了形を見つける', async () => {
+    const { containsWin } = await import('../src/core/shanten');
+    expect(containsWin(toCounts(parseTiles('123m456p789s11z')), 1)).toBe(true);
+    expect(containsWin(toCounts(parseTiles('123m456p789s11222z359m')), 0)).toBe(true);
+    expect(containsWin(toCounts(parseTiles('147m258p369s1234567z')), 0)).toBe(false);
+    expect(containsWin(toCounts(parseTiles('1199m1199p1199s11z5p')), 0)).toBe(true);
+    expect(containsWin(toCounts(parseTiles('123m456p789s1z2z3z')), 1)).toBe(false);
+  });
+});

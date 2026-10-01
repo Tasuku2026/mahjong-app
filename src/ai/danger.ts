@@ -1,7 +1,9 @@
 // 危険度（放銃率）の推定。
 // 公開情報（河・副露・ドラ表示牌・自分の手牌）だけから、各牌が各相手に当たる確率を見積もる。
 import { Game } from '../core/game';
-import { Kind, kindOf, isHonor, doraFromIndicator } from '../core/tiles';
+import { Kind, kindOf, isHonor, doraFromIndicator, toCounts } from '../core/tiles';
+import { getWaits } from '../core/shanten';
+import { evaluateWin } from '../core/yaku';
 import { meldIsOpen } from '../core/types';
 
 /** 相手 o に対して確実に安全な牌（現物: o の捨て牌、o のリーチ後に誰かが通した牌） */
@@ -96,4 +98,29 @@ export function dangerByOpponent(g: Game, seat: number): { seat: number; tenpai:
 /** ドラかどうか */
 export function isDoraKind(g: Game, k: Kind): boolean {
   return g.doraIndicators.some((t) => doraFromIndicator(kindOf(t)) === k);
+}
+
+/**
+ * 相手の実際の手牌から求めた、各牌種でロンされる相手の一覧（透視）。
+ * 役がない・フリテンでロンできない待ちは含めない。
+ */
+export function exactHits(g: Game, seat: number): number[][] {
+  const hits: number[][] = Array.from({ length: 34 }, () => []);
+  for (let o = 0; o < 4; o++) {
+    if (o === seat) continue;
+    const p = g.players[o];
+    if (p.hand.length % 3 !== 1) continue;
+    const waits = getWaits(toCounts(p.hand), p.melds.length);
+    if (waits.length === 0 || g.isFuriten(p, waits)) continue;
+    for (const k of waits) {
+      const tile = k * 4 + 3;
+      const r = evaluateWin({
+        hand: [...p.hand, tile], melds: p.melds, winTile: tile, tsumo: false,
+        riichi: p.riichi ? (p.doubleRiichi ? 2 : 1) : 0, seatWind: g.seatWind(o), roundWind: g.roundWindKind,
+        doraIndicators: g.doraIndicators, uraIndicators: [], rules: g.rules,
+      });
+      if (r) hits[k].push(o);
+    }
+  }
+  return hits;
 }

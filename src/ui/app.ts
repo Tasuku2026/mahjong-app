@@ -3,7 +3,7 @@ import {
 } from '../core/game';
 import { Tile, kindOf, kindName, WIND_NAMES } from '../core/tiles';
 import { DEFAULT_RULES, Rules } from '../core/types';
-import { CpuAgent } from '../ai/cpu';
+import { CpuAgent, LEVEL_KAMI, LEVEL_ONI, levelLabel } from '../ai/cpu';
 import { tileHtml, meldHtml } from './tileView';
 import { helpButton, helpDialogHtml } from './help';
 import { AssistSettings, DEFAULT_ASSIST, DangerMode, discardInfo, handDanger, recommend, remainCounts } from './assist';
@@ -115,6 +115,8 @@ export class App implements GameUI {
       <label class="row"><span>${label}</span>
         <select data-level="${i}">
           ${Array.from({ length: 10 }, (_, n) => `<option value="${n + 1}" ${s.levels[i] === n + 1 ? 'selected' : ''}>レベル ${n + 1}</option>`).join('')}
+          <option value="${LEVEL_ONI}" ${s.levels[i] === LEVEL_ONI ? 'selected' : ''}>レベル鬼</option>
+          <option value="${LEVEL_KAMI}" ${s.levels[i] === LEVEL_KAMI ? 'selected' : ''}>レベル神</option>
         </select>
       </label>`;
     this.root.innerHTML = `
@@ -188,10 +190,10 @@ export class App implements GameUI {
           </div>
         </section>`;
     };
-    const bands = ['Lv1〜3', 'Lv4〜6', 'Lv7〜10'];
+    const bands = ['Lv1〜3', 'Lv4〜6', 'Lv7〜10', '鬼・神あり'];
     const recent = all.slice(-10).reverse().map((r) => `
       <tr><td>${new Date(r.date).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}</td>
-      <td>${r.length === 'tonpu' ? '東風' : '半荘'}</td><td>Lv${r.levels.join('/')}</td>
+      <td>${r.length === 'tonpu' ? '東風' : '半荘'}</td><td>Lv${r.levels.map(levelLabel).join('/')}</td>
       <td class="num rank-${r.rank}">${r.rank}位</td><td class="num">${fmt(r.score)}</td></tr>`).join('');
     this.root.innerHTML = `
       <div class="start">
@@ -227,9 +229,9 @@ export class App implements GameUI {
     const human = new HumanAgent(this);
     const players = [
       { name: 'あなた', isHuman: true, level: 0 },
-      { name: `下家 Lv${s.levels[0]}`, isHuman: false, level: s.levels[0] },
-      { name: `対面 Lv${s.levels[1]}`, isHuman: false, level: s.levels[1] },
-      { name: `上家 Lv${s.levels[2]}`, isHuman: false, level: s.levels[2] },
+      { name: `下家 Lv${levelLabel(s.levels[0])}`, isHuman: false, level: s.levels[0] },
+      { name: `対面 Lv${levelLabel(s.levels[1])}`, isHuman: false, level: s.levels[1] },
+      { name: `上家 Lv${levelLabel(s.levels[2])}`, isHuman: false, level: s.levels[2] },
     ];
     const agents: Agent[] = [human, new CpuAgent(s.levels[0]), new CpuAgent(s.levels[1]), new CpuAgent(s.levels[2])];
     const g = new Game({ ...s.rules }, players, agents, this);

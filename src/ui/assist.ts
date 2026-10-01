@@ -1,10 +1,8 @@
 // プレイヤー向けの補助情報（残り枚数・危険度・ヒント・役と期待値）
 import { Game } from '../core/game';
-import { Kind, Tile, kindOf, toCounts } from '../core/tiles';
-import { getWaits } from '../core/shanten';
-import { evaluateWin } from '../core/yaku';
+import { Kind, Tile, kindOf } from '../core/tiles';
 import { CpuAgent, evaluateDiscards } from '../ai/cpu';
-import { dangerByOpponent } from '../ai/danger';
+import { dangerByOpponent, exactHits } from '../ai/danger';
 import { outlook, Outlook } from '../ai/value';
 
 export type DangerMode = 'off' | 'est' | 'true';
@@ -44,29 +42,8 @@ export function handDanger(g: Game, mode: DangerMode, seat = 0): Map<Kind, TileD
       out.set(k, { value: 1 - safe, hitBy: [] });
     }
   } else if (mode === 'true') {
-    for (const k of kinds) out.set(k, { value: 0, hitBy: [] });
-    for (let o = 0; o < 4; o++) {
-      if (o === seat) continue;
-      const p = g.players[o];
-      if (p.hand.length % 3 !== 1) continue;
-      const waits = getWaits(toCounts(p.hand), p.melds.length);
-      if (waits.length === 0 || g.isFuriten(p, waits)) continue;
-      for (const k of kinds) {
-        if (!waits.includes(k)) continue;
-        // 役があってロンできるか
-        const tile = k * 4 + 3;
-        const r = evaluateWin({
-          hand: [...p.hand, tile], melds: p.melds, winTile: tile, tsumo: false,
-          riichi: p.riichi ? (p.doubleRiichi ? 2 : 1) : 0, seatWind: g.seatWind(o), roundWind: g.roundWindKind,
-          doraIndicators: g.doraIndicators, uraIndicators: [], rules: g.rules,
-        });
-        if (r) {
-          const d = out.get(k)!;
-          d.value = 1;
-          d.hitBy.push(o);
-        }
-      }
-    }
+    const hits = exactHits(g, seat);
+    for (const k of kinds) out.set(k, { value: hits[k].length ? 1 : 0, hitBy: hits[k] });
   }
   return out;
 }

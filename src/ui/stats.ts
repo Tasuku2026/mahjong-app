@@ -89,6 +89,7 @@ export function summarize(list: GameRecord[]): Summary {
 
 /** CPUの平均レベルで分類 */
 export function levelBand(levels: number[]): string {
+  if (levels.some((l) => l >= 11)) return '鬼・神あり';
   const avg = levels.reduce((a, b) => a + b, 0) / levels.length;
   if (avg < 3.5) return 'Lv1〜3';
   if (avg < 6.5) return 'Lv4〜6';
