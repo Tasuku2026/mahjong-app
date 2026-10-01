@@ -1,12 +1,12 @@
 import {
   Agent, CallAction, CallOptions, FinalStanding, Game, GameUI, RoundResult, TurnAction, TurnOptions,
 } from '../core/game';
-import { Tile, kindOf, kindName, WIND_NAMES } from '../core/tiles';
+import { Tile, kindOf, WIND_NAMES } from '../core/tiles';
 import { DEFAULT_RULES, Rules } from '../core/types';
 import { CpuAgent, LEVEL_KAMI, LEVEL_ONI, levelLabel } from '../ai/cpu';
 import { tileHtml, meldHtml } from './tileView';
 import { helpButton, helpDialogHtml } from './help';
-import { T, yakuRuby } from './terms';
+import { T, furigana, kindRuby, roundRuby, yakuRuby } from './terms';
 import { AssistSettings, DEFAULT_ASSIST, DangerMode, Advice, adviseCall, adviseTurn, discardInfo, handDanger, remainCounts } from './assist';
 import { outlook, Outlook } from '../ai/value';
 import { setSoundEnabled, sfx, unlockAudio } from './sound';
@@ -115,7 +115,7 @@ export class App implements GameUI {
     this.game = null;
     const s = this.settings;
     const levelSelect = (i: number, label: string) => `
-      <label class="row"><span>${label}</span>
+      <label class="row"><span>${furigana(label)}</span>
         <select data-level="${i}">
           ${Array.from({ length: 10 }, (_, n) => `<option value="${n + 1}" ${s.levels[i] === n + 1 ? 'selected' : ''}>レベル ${n + 1}</option>`).join('')}
           <option value="${LEVEL_ONI}" ${s.levels[i] === LEVEL_ONI ? 'selected' : ''}>レベル鬼</option>
@@ -134,6 +134,7 @@ export class App implements GameUI {
               <option value="tonpu" ${s.rules.gameLength === 'tonpu' ? 'selected' : ''}>東風戦</option>
               <option value="hanchan" ${s.rules.gameLength === 'hanchan' ? 'selected' : ''}>半荘戦</option>
             </select>
+            <small class="sel-note">${furigana('東風戦')}・${furigana('半荘戦')}</small>
           </label>
           <label class="row"><span>CPUの速さ${helpButton('speed')}</span>
             <select id="speed">
@@ -154,7 +155,7 @@ export class App implements GameUI {
         <section class="card">
           <h2>ルール</h2>
           ${RULE_ROWS.map(([key, label]) => `
-            <label class="row"><span>${label}${helpButton(key)}</span><input type="checkbox" data-rule="${key}" ${s.rules[key] ? 'checked' : ''}></label>`).join('')}
+            <label class="row"><span>${furigana(label)}${helpButton(key)}</span><input type="checkbox" data-rule="${key}" ${s.rules[key] ? 'checked' : ''}></label>`).join('')}
         </section>
         <button class="primary big" data-act="start">対局開始</button>
         <button class="big secondary" data-act="stats">戦績を見る</button>
@@ -185,11 +186,11 @@ export class App implements GameUI {
               <div class="rb"><span>${i + 1}位</span><div class="bar"><i class="r${i + 1}" style="width:${(n / max) * 100}%"></i></div><span class="num">${n}回 (${pct(n / m.games)})</span></div>`).join('')}
           </div>
           <div class="stat-grid">
-            <div><span>和了率</span><b>${pct(m.winRate)}</b></div>
-            <div><span>放銃率</span><b>${pct(m.dealinRate)}</b></div>
-            <div><span>立直率</span><b>${pct(m.riichiRate)}</b></div>
-            <div><span>副露率</span><b>${pct(m.callRate)}</b></div>
-            <div><span>平均和了点</span><b>${fmt(Math.round(m.avgWin))}</b></div>
+            <div><span>${furigana('和了率')}</span><b>${pct(m.winRate)}</b></div>
+            <div><span>${furigana('放銃率')}</span><b>${pct(m.dealinRate)}</b></div>
+            <div><span>${furigana('立直率')}</span><b>${pct(m.riichiRate)}</b></div>
+            <div><span>${furigana('副露率')}</span><b>${pct(m.callRate)}</b></div>
+            <div><span>${furigana('平均和了点')}</span><b>${fmt(Math.round(m.avgWin))}</b></div>
           </div>
         </section>`;
     };
@@ -484,14 +485,14 @@ export class App implements GameUI {
   private centerHtml(g: Game): string {
     return `
       <div class="round-info">
-        <div class="round">${g.roundName}<small>${g.honba}本場</small></div>
-        <div class="label">ドラ表示牌</div>
+        <div class="round">${roundRuby(g.roundName)}<small>${g.honba}${furigana('本場')}</small></div>
+        <div class="label">${furigana('ドラ表示牌')}</div>
         <div class="dora">${g.doraIndicators.map((t) => tileHtml(t, { red: g.isRed(t) })).join('')}${
           '<div class="tile back"></div>'.repeat(5 - g.doraCount)}</div>
       </div>
       <div class="center">
         <div class="remain">残り <b>${g.live.length}</b></div>
-        ${g.kyoutaku > 0 ? `<div class="kyoutaku">供託 ${g.kyoutaku}</div>` : ''}
+        ${g.kyoutaku > 0 ? `<div class="kyoutaku">${furigana('供託')} ${g.kyoutaku}</div>` : ''}
       </div>`;
   }
 
@@ -527,7 +528,7 @@ export class App implements GameUI {
         </div>
         <div class="river">${river}</div>
         ${handArea}
-        ${bubble ? `<div class="bubble">${bubble}</div>` : ''}
+        ${bubble ? `<div class="bubble">${furigana(bubble)}</div>` : ''}
       </div>`;
   }
 
@@ -544,12 +545,12 @@ export class App implements GameUI {
     return `
       <div class="tools tools-left">
         ${chip('hint', 'ヒント', a.hint)}
-        ${chip('outlook', '役・期待値', a.outlook)}
+        ${chip('outlook', furigana('役') + '・期待値', a.outlook)}
         <button class="chip ${a.danger !== 'off' ? 'on' : ''} ${a.danger === 'true' ? 'cheat' : ''}" data-act="danger">${dangerLabel}</button>
       </div>
       <div class="tools tools-right">
         ${chip('remain', '残り枚数', a.remain)}
-        ${chip('open', '手牌公開', a.open)}
+        ${chip('open', furigana('手牌') + '公開', a.open)}
         ${helpButton('assist')}
       </div>`;
   }
@@ -611,7 +612,7 @@ export class App implements GameUI {
     if (o.shanten < 0) shanten = `<b>${T.agari}の形</b>`;
     else if (o.shanten === 0) shanten = `<b>${T.tenpai}</b><span class="o-note">あと1枚で${T.agari}できる形</span>`;
     else shanten = `<b>${T.shanten(o.shanten)}</b><span class="o-note">${T.tenpai}まで あと${o.shanten}枚</span>`;
-    const yaku = o.yaku.length ? o.yaku.map(yakuRuby).join('・') : '<span class="warn">役がありません（このままでは和了できない）</span>';
+    const yaku = o.yaku.length ? o.yaku.map(yakuRuby).join('・') : `<span class="warn">${furigana('役')}がありません（このままでは${T.agari}できない）</span>`;
     let waits = '';
     if (o.waits.length) {
       waits = `<div class="waits"><span class="o-label">${T.machi}<small>（当たり牌）</small></span>${o.waits.map((w) => `
@@ -621,11 +622,11 @@ export class App implements GameUI {
     return `
       <div class="outlook">
         <div class="o-head">${head}${shanten}</div>
-        <div class="o-yaku"><span class="o-label">目指せる役</span>${yaku}</div>
+        <div class="o-yaku"><span class="o-label">目指せる${furigana('役')}</span>${yaku}</div>
         <div class="o-nums">
           <span>${T.agari}時の点数 <b>${o.points ? `約${fmt(o.points)}点` : '—'}</b>${riichiNote}</span>
-          <span>和了率 <b>約${Math.round(o.winProb * 100)}%</b><small>（あがれる確率）</small></span>
-          <span>期待値 <b>約${fmt(Math.round(o.ev / 100) * 100)}点</b><small>（点数×和了率）</small></span>
+          <span>${furigana('和了率')} <b>約${Math.round(o.winProb * 100)}%</b><small>（あがれる確率）</small></span>
+          <span>期待値 <b>約${fmt(Math.round(o.ev / 100) * 100)}点</b><small>（点数×${furigana('和了率')}）</small></span>
           ${ukeire !== undefined ? `<span>${T.ukeire} <b>${ukeire}枚</b><small>（手が進む牌の残り）</small></span>` : ''}
         </div>
         ${waits}
@@ -642,7 +643,7 @@ export class App implements GameUI {
     if (a.outlook) {
       if (pend && this.selected !== null) {
         const info = discardInfo(g, this.selected);
-        parts.push(this.outlookHtml(g, info.outlook, `${kindName(kindOf(this.selected))}を切ると：`, info.ukeire));
+        parts.push(this.outlookHtml(g, info.outlook, `${kindRuby(kindOf(this.selected))}を切ると：`, info.ukeire));
       } else if (pend) {
         const adv = this.hint(g);
         const tile = adv?.kind === 'turn' && adv.action.type === 'discard' ? adv.action.tile : pend.opts.discardable[0];
@@ -696,7 +697,7 @@ export class App implements GameUI {
     if (!pend) {
       const p = g.players[0];
       const waits = g.waitsOf(p);
-      return waits.length ? `<div class="info">待ち: ${waits.map(kindName).join(' ')}${g.isFuriten(p, waits) ? '（フリテン）' : ''}</div>` : '';
+      return waits.length ? `<div class="info">${T.machi}: ${waits.map(kindRuby).join(' ')}${g.isFuriten(p, waits) ? '（フリテン）' : ''}</div>` : '';
     }
     const b: string[] = [];
     const adv = this.settings.assist.hint ? this.hint(g) : null;
@@ -709,9 +710,9 @@ export class App implements GameUI {
       };
       if (o.canTsumo) b.push(btn(act?.type === 'tsumo', 'win', 'data-act="tsumo"', 'ツモ'));
       if (o.riichiTiles.length) b.push(btn(act?.type === 'discard' && !!act.riichi, this.riichiMode ? 'on' : '', 'data-act="riichi"', 'リーチ'));
-      for (const k of o.ankanKinds) b.push(btn(act?.type === 'ankan' && act.kind === k, '', `data-act="ankan" data-kind="${k}"`, `カン ${kindName(k)}`));
-      for (const k of o.kakanKinds) b.push(btn(act?.type === 'kakan' && act.kind === k, '', `data-act="kakan" data-kind="${k}"`, `カン ${kindName(k)}`));
-      if (o.canKyuushu) b.push(btn(act?.type === 'kyuushu', '', 'data-act="kyuushu"', '九種九牌'));
+      for (const k of o.ankanKinds) b.push(btn(act?.type === 'ankan' && act.kind === k, '', `data-act="ankan" data-kind="${k}"`, `カン ${kindRuby(k)}`));
+      for (const k of o.kakanKinds) b.push(btn(act?.type === 'kakan' && act.kind === k, '', `data-act="kakan" data-kind="${k}"`, `カン ${kindRuby(k)}`));
+      if (o.canKyuushu) b.push(btn(act?.type === 'kyuushu', '', 'data-act="kyuushu"', furigana('九種九牌')));
       const hint = this.riichiMode ? 'リーチする牌を選んでください' : this.selected !== null ? 'もう一度タップで打牌' : '捨てる牌をタップ';
       return `${b.join('')}<div class="info">${hint}</div>`;
     }
@@ -728,7 +729,7 @@ export class App implements GameUI {
     o.chi.forEach((v, i) => b.push(btn(act?.type === 'chi' && same(act.tiles, v), '', `data-act="chi" data-i="${i}"`, `チー${this.miniTiles(g, v)}`)));
     if (o.minkan) b.push(btn(act?.type === 'minkan', '', 'data-act="minkan"', 'カン'));
     b.push(btn(act?.type === 'pass', 'pass', 'data-act="pass"', 'スキップ'));
-    return `<div class="info">${from}の ${kindName(kindOf(pend.tile))}</div>${b.join('')}`;
+    return `<div class="info">${furigana(from)}の ${kindRuby(kindOf(pend.tile))}</div>${b.join('')}`;
   }
 
   private miniTiles(g: Game, tiles: Tile[]): string {
@@ -750,16 +751,16 @@ export class App implements GameUI {
   }
 
   private resultHtml(g: Game, r: RoundResult): string {
-    const names = g.players.map((p) => p.name);
+    const names = g.players.map((p) => furigana(p.name));
     let body = '';
     if (r.type === 'win') {
       body = r.wins.map((w) => {
         const res = w.result;
         const how = w.from === null ? 'ツモ' : `ロン（${names[w.from]}から）`;
-        const yaku = res.yaku.map((y) => `<li><span>${yakuRuby(y.name)}</span><span>${y.yakuman ? (y.yakuman > 1 ? `${y.yakuman}倍役満` : '役満') : `${y.han}翻`}</span></li>`);
-        if (res.dora) yaku.push(`<li><span>ドラ</span><span>${res.dora}翻</span></li>`);
-        if (res.aka) yaku.push(`<li><span>赤ドラ</span><span>${res.aka}翻</span></li>`);
-        if (res.ura) yaku.push(`<li><span>裏ドラ</span><span>${res.ura}翻</span></li>`);
+        const yaku = res.yaku.map((y) => `<li><span>${yakuRuby(y.name)}</span><span>${y.yakuman ? furigana(y.yakuman > 1 ? `${y.yakuman}倍役満` : '役満') : `${y.han}${furigana('翻')}`}</span></li>`);
+        if (res.dora) yaku.push(`<li><span>ドラ</span><span>${res.dora}${furigana('翻')}</span></li>`);
+        if (res.aka) yaku.push(`<li><span>${furigana('赤ドラ')}</span><span>${res.aka}${furigana('翻')}</span></li>`);
+        if (res.ura) yaku.push(`<li><span>${furigana('裏ドラ')}</span><span>${res.ura}${furigana('翻')}</span></li>`);
         const head = res.yakuman ? res.limit : `${res.fu}符 ${res.han}翻${res.limit ? ` ${res.limit}` : ''}`;
         const showUra = g.players[w.seat].riichi;
         return `
@@ -767,24 +768,24 @@ export class App implements GameUI {
             <h3>${names[w.seat]} の ${how}</h3>
             ${this.handBlock(g, w.hand, w.melds, w.seat, w.winTile)}
             <div class="dora-row">ドラ ${g.doraIndicators.map((t) => tileHtml(t, { red: g.isRed(t) })).join('')}
-              ${showUra ? `　裏 ${r.uraIndicators.map((t) => tileHtml(t, { red: g.isRed(t) })).join('')}` : ''}</div>
+              ${showUra ? `　<ruby>裏<rt>うら</rt></ruby> ${r.uraIndicators.map((t) => tileHtml(t, { red: g.isRed(t) })).join('')}` : ''}</div>
             <ul class="yaku">${yaku.join('')}</ul>
-            <div class="points">${head}　<b>${fmt(w.gain)}点</b></div>
+            <div class="points">${furigana(head)}　<b>${fmt(w.gain)}点</b></div>
           </div>`;
       }).join('');
     } else if (r.type === 'draw') {
-      body = `<h3>流局</h3>` + g.players.map((p, s) => `
+      body = `<h3>${furigana('流局')}</h3>` + g.players.map((p, s) => `
         <div class="draw-row"><span class="${r.tenpai[s] ? 'tenpai' : 'noten'}">${r.tenpai[s] ? 'テンパイ' : 'ノーテン'}</span> ${names[s]}
         ${r.tenpai[s] ? this.handBlock(g, p.hand, p.melds, s) : ''}</div>`).join('');
     } else {
-      body = `<h3>途中流局：${r.reason}</h3>`;
+      body = `<h3>${furigana(`途中流局：${r.reason}`)}</h3>`;
     }
     const scores = g.players.map((p, s) => `
       <tr><td>${names[s]}</td><td class="num">${fmt(p.score)}</td>
       <td class="num ${r.scoreDelta[s] > 0 ? 'plus' : r.scoreDelta[s] < 0 ? 'minus' : ''}">${r.scoreDelta[s] ? signed(r.scoreDelta[s]) : ''}</td></tr>`).join('');
     return `
       <div class="result">
-        <div class="result-title">${g.roundName} ${g.honba}本場</div>
+        <div class="result-title">${roundRuby(g.roundName)} ${g.honba}${furigana('本場')}</div>
         ${body}
         <table class="scores">${scores}</table>
         <button class="primary" data-act="next">次へ</button>
@@ -794,7 +795,7 @@ export class App implements GameUI {
   private showFinal(st: FinalStanding[]): Promise<void> {
     const g = this.game!;
     const rows = st.map((x) => `
-      <tr class="${x.seat === 0 ? 'me-row' : ''}"><td>${x.rank}位</td><td>${g.players[x.seat].name}</td>
+      <tr class="${x.seat === 0 ? 'me-row' : ''}"><td>${x.rank}位</td><td>${furigana(g.players[x.seat].name)}</td>
       <td class="num">${fmt(x.score)}</td><td class="num ${x.point >= 0 ? 'plus' : 'minus'}">${x.point > 0 ? '+' : ''}${x.point.toFixed(1)}</td></tr>`).join('');
     const mine = st.find((x) => x.seat === 0)!;
     const myRank = mine.rank;

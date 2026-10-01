@@ -612,3 +612,4 @@ ruby rt { font-size: .58em; color: var(--muted); font-weight: 400; letter-spacin
 .outlook .o-nums { line-height: 2.1; }
 .outlook .o-nums small { color: var(--muted); font-size: .72rem; }
 .outlook .waits .o-label small { font-size: .9em; }
+.sel-note { color: var(--muted); font-size: .72rem; line-height: 2; }

@@ -1,9 +1,13 @@
-// 専門用語にふりがな（ruby）を付けて、覚えながら読めるようにする
+// 麻雀用語にふりがな（ruby）を付けて、覚えながら読めるようにする
+import { Kind, suitOf, numOf } from '../core/tiles';
 
-/** 役の読み方 */
-const YAKU_READING: [string, string][] = [
+/**
+ * 用語集（漢字 → 読み）。長い語から順に照合するので、並び順は気にしなくてよい。
+ * 中国語由来の読みはカタカナ、日本語の読みはひらがな。
+ */
+const GLOSSARY: [string, string][] = [
+  // 役
   ['門前清自摸和', 'メンゼンツモ'],
-  ['ダブル立直', 'ダブルリーチ'],
   ['混全帯幺九', 'チャンタ'],
   ['純全帯幺九', 'ジュンチャン'],
   ['九蓮宝燈', 'チューレンポウトウ'],
@@ -42,16 +46,98 @@ const YAKU_READING: [string, string][] = [
   ['役牌', 'ヤクハイ'],
   ['自風', 'ジカゼ'],
   ['場風', 'バカゼ'],
+  // 点数
+  ['数え役満', 'かぞえヤクマン'],
+  ['三倍満', 'サンバイマン'],
+  ['倍満', 'バイマン'],
+  ['跳満', 'ハネマン'],
+  ['満貫', 'マンガン'],
+  ['役満', 'ヤクマン'],
+  ['符', 'フ'],
+  ['翻', 'ハン'],
+  ['役', 'ヤク'],
+  // 局の進行
+  ['途中流局', 'とちゅうリュウキョク'],
+  ['流局', 'リュウキョク'],
+  ['九種九牌', 'キュウシュキュウハイ'],
+  ['四風連打', 'スーフーレンダ'],
+  ['四家立直', 'スーチャリーチ'],
+  ['四開槓', 'スーカイカン'],
+  ['本場', 'ほんば'],
+  ['供託', 'きょうたく'],
+  ['東風戦', 'トンプウセン'],
+  ['半荘戦', 'ハンチャンセン'],
+  ['西入', 'シャーニュウ'],
+  ['南入', 'ナンニュウ'],
+  // 状態・行為
+  ['向聴', 'シャンテン'],
+  ['聴牌', 'テンパイ'],
+  ['和了', 'あがり'],
+  ['放銃', 'ほうじゅう'],
+  ['副露', 'フーロ'],
+  ['手牌', 'てはい'],
+  ['捨て牌', 'すてはい'],
+  ['打牌', 'ダハイ'],
+  ['受け入れ', 'うけいれ'],
+  ['待ち', 'まち'],
+  ['ドラ表示牌', 'ドラひょうじハイ'],
+  ['裏ドラ', 'うらドラ'],
+  ['赤ドラ', 'あかドラ'],
+  ['喰いタン', 'くいタン'],
+  ['切り上げ', 'きりあげ'],
+  // 席
+  ['下家', 'シモチャ'],
+  ['対面', 'トイメン'],
+  ['上家', 'カミチャ'],
 ];
+
+const TERMS = GLOSSARY.slice().sort((a, b) => b[0].length - a[0].length);
 
 export const ruby = (word: string, reading: string): string => `<ruby>${word}<rt>${reading}</rt></ruby>`;
 
-/** 役の名前の先頭にある漢字の役名に、ふりがなを付ける（例: 「役牌 白」「立直（予定）」） */
-export function yakuRuby(name: string): string {
-  for (const [word, reading] of YAKU_READING) {
-    if (name.startsWith(word)) return ruby(word, reading) + name.slice(word.length);
+/** 文章の中の麻雀用語にふりがなを付ける（引数は HTML を含まない文字列） */
+export function furigana(text: string): string {
+  let out = '';
+  let i = 0;
+  while (i < text.length) {
+    const hit = TERMS.find(([w]) => text.startsWith(w, i));
+    if (hit) {
+      out += ruby(hit[0], hit[1]);
+      i += hit[0].length;
+    } else {
+      out += text[i];
+      i++;
+    }
   }
-  return name;
+  return out;
+}
+
+/** 役の名前（「役牌 白」の「白」なども含めて） */
+export function yakuRuby(name: string): string {
+  // 「役牌 白」「自風 東」のような、役名 + 牌の名前
+  const m = name.match(/^(.*) ([東南西北白發中])(.*)$/);
+  if (m) return `${furigana(m[1])} ${honorRuby(m[2])}${furigana(m[3])}`;
+  return furigana(name);
+}
+
+const HONOR_READING: Record<string, string> = { 東: 'トン', 南: 'ナン', 西: 'シャー', 北: 'ペー', 白: 'ハク', 發: 'ハツ', 中: 'チュン' };
+const SUIT = [['萬', 'マン'], ['筒', 'ピン'], ['索', 'ソー']];
+const KANJI_NUM = ['一', '二', '三', '四', '五', '六', '七', '八', '九'];
+
+export const honorRuby = (ch: string): string => (HONOR_READING[ch] ? ruby(ch, HONOR_READING[ch]) : ch);
+
+/** 牌の名前（例: 5筒 → 5<ruby>筒<rt>ピン</rt></ruby>） */
+export function kindRuby(k: Kind): string {
+  if (k >= 27) return honorRuby('東南西北白發中'[k - 27]);
+  const s = suitOf(k);
+  const num = s === 0 ? KANJI_NUM[k % 9] : String(numOf(k));
+  return num + ruby(SUIT[s][0], SUIT[s][1]);
+}
+
+/** 局の名前（例: 東1局 → 東(トン)1局(キョク)） */
+export function roundRuby(name: string): string {
+  const m = name.match(/^([東南西北])(\d)局$/);
+  return m ? `${honorRuby(m[1])}${m[2]}${ruby('局', 'キョク')}` : furigana(name);
 }
 
 /** よく出る用語 */
