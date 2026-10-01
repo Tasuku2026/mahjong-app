@@ -362,3 +362,27 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
 .final .rank1 { color: var(--accent); }
 .final .me-row td { font-weight: 800; }
 .final .btns { display: flex; flex-direction: column; gap: 8px; }
+
+/* ---------------- 説明（？）ボタン ---------------- */
+button.help {
+  min-height: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  margin-left: 8px;
+  border-radius: 50%;
+  font-size: .8rem;
+  line-height: 1;
+  color: var(--accent);
+  background: transparent;
+  border: 1.5px solid var(--accent);
+  vertical-align: middle;
+}
+.card h2 button.help { width: 22px; height: 22px; font-size: .75rem; }
+.help-dialog h2 { margin: 0 0 10px; font-size: 1.2rem; }
+.help-dialog p { line-height: 1.7; margin: 8px 0; }
+.help-dialog dl { margin: 8px 0; }
+.help-dialog dt { font-weight: 800; color: var(--accent); margin-top: 10px; }
+.help-dialog dd { margin: 2px 0 0 0; line-height: 1.6; }
+.help-dialog .note { color: var(--muted); font-size: .88rem; }
+.help-dialog > button { width: 100%; margin-top: 12px; }

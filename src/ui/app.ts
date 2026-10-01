@@ -5,6 +5,7 @@ import { Tile, kindOf, kindName, WIND_NAMES } from '../core/tiles';
 import { DEFAULT_RULES, Rules } from '../core/types';
 import { CpuAgent } from '../ai/cpu';
 import { tileHtml, meldHtml } from './tileView';
+import { helpButton, helpDialogHtml } from './help';
 
 type Pending =
   | { kind: 'turn'; seat: number; opts: TurnOptions; resolve: (a: TurnAction) => void }
@@ -94,13 +95,13 @@ export class App implements GameUI {
         <p class="sub">CPU 3人と対局する4人打ちリーチ麻雀</p>
         <section class="card">
           <h2>対局</h2>
-          <label class="row"><span>対局の長さ</span>
+          <label class="row"><span>対局の長さ${helpButton('len')}</span>
             <select id="len">
               <option value="tonpu" ${s.rules.gameLength === 'tonpu' ? 'selected' : ''}>東風戦</option>
               <option value="hanchan" ${s.rules.gameLength === 'hanchan' ? 'selected' : ''}>半荘戦</option>
             </select>
           </label>
-          <label class="row"><span>CPUの速さ</span>
+          <label class="row"><span>CPUの速さ${helpButton('speed')}</span>
             <select id="speed">
               <option value="1.6" ${s.speed === 1.6 ? 'selected' : ''}>ゆっくり</option>
               <option value="1" ${s.speed === 1 ? 'selected' : ''}>ふつう</option>
@@ -109,15 +110,15 @@ export class App implements GameUI {
           </label>
         </section>
         <section class="card">
-          <h2>CPUの強さ</h2>
+          <h2>CPUの強さ${helpButton('level')}</h2>
           ${levelSelect(0, '下家（右）')}
           ${levelSelect(1, '対面（上）')}
           ${levelSelect(2, '上家（左）')}
         </section>
         <section class="card">
           <h2>ルール</h2>
-          <label class="row"><span>赤ドラ</span><input type="checkbox" id="aka" ${s.rules.aka ? 'checked' : ''}></label>
-          <label class="row"><span>喰いタン</span><input type="checkbox" id="kuitan" ${s.rules.kuitan ? 'checked' : ''}></label>
+          <label class="row"><span>赤ドラ${helpButton('aka')}</span><input type="checkbox" id="aka" ${s.rules.aka ? 'checked' : ''}></label>
+          <label class="row"><span>喰いタン${helpButton('kuitan')}</span><input type="checkbox" id="kuitan" ${s.rules.kuitan ? 'checked' : ''}></label>
         </section>
         <button class="primary big" data-act="start">対局開始</button>
       </div>`;
@@ -212,6 +213,17 @@ export class App implements GameUI {
     const act = el.dataset.act!;
     const pend = this.pending;
     switch (act) {
+      case 'help':
+        // label 内のボタンなので、チェックボックスやセレクトが反応しないようにする
+        e.preventDefault();
+        this.root.querySelector('.help-overlay')?.remove();
+        this.root.insertAdjacentHTML('beforeend', helpDialogHtml(el.dataset.help!));
+        return;
+      case 'close-help':
+        // ダイアログ本文のタップでは閉じない（背景か閉じるボタンのみ）
+        if (el.classList.contains('help-overlay') && e.target !== el) return;
+        this.root.querySelector('.help-overlay')?.remove();
+        return;
       case 'start':
         this.readStartForm();
         void this.startGame();
