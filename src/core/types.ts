@@ -32,14 +32,14 @@ export interface Rules {
 }
 
 export const DEFAULT_RULES: Rules = {
-  gameLength: 'hanchan',
+  gameLength: 'tonpu',
   aka: true,
   kuitan: true,
   kiriage: false,
   tobi: true,
   agariYame: true,
   extension: true,
-  undo: false,
+  undo: true,
   startScore: 25000,
   returnScore: 30000,
 };
