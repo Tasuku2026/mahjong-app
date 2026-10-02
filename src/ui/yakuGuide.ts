@@ -622,7 +622,7 @@ function itemHtml(r: Row, open: Set<string>, kuitan: boolean): string {
     <details class="yk-item ${m.cls}" data-yaku="${y.name}" ${open.has(y.name) ? 'open' : ''}>
       <summary>
         <span class="yk-mark" title="${m.label}">${m.sym}</span>
-        <span class="yk-name">${yakuRuby(y.name)}</span>
+        <span class="yk-name" data-yaku-pop="${y.name}" title="">${yakuRuby(y.name)}</span>
         <span class="yk-han">${hanLabel(y, kuitan)}</span>
         <span class="yk-note">${statHtml(e, !!y.luck)}${showNote ? `<br>${furigana(r.note)}` : ''}</span>
       </summary>
@@ -653,15 +653,27 @@ function rows(g: Game, unseen: number[]): Row[] {
   return out;
 }
 
+/** 折りたたみの欄 */
+function foldHtml(key: string, title: string, list: Row[], open: Set<string>, kuitan: boolean): string {
+  if (list.length === 0) return '';
+  return `
+    <details class="yk-fold" data-yaku="${key}" ${open.has(key) ? 'open' : ''}>
+      <summary>${title}（${list.length}）</summary>
+      <div class="yk-list">${list.map((r) => itemHtml(r, open, kuitan)).join('')}</div>
+    </details>`;
+}
+
 /**
  * 役確認の中身。
- * unseen: 自分から見えていない枚数、open: 説明を開いている役、closable: 閉じるボタンを出すか
+ * unseen: 自分から見えていない枚数、open: 開いている欄・役、closable: 閉じるボタンを出すか
  */
 export function yakuGuideHtml(g: Game, unseen: number[], open: Set<string>, closable: boolean): string {
   const list = rows(g, unseen);
   // 成立する確率の高い順。同じなら「あと何枚」の少ない順、それも同じなら点数の低い順
   const possible = list.filter((r) => !r.y.luck && Number.isFinite(r.e.need))
     .sort((a, b) => (b.e.prob - a.e.prob) || (a.e.need - b.e.need) || (a.y.han - b.y.han));
+  const near = possible.filter((r) => mark(r.e, false).cls !== 'fit-far');
+  const far = possible.filter((r) => mark(r.e, false).cls === 'fit-far');
   const luck = list.filter((r) => r.y.luck);
   const impossible = list.filter((r) => !r.y.luck && !Number.isFinite(r.e.need));
   const wind = WIND_NAMES[g.seatWind(0) - 27];
@@ -671,13 +683,20 @@ export function yakuGuideHtml(g: Game, unseen: number[], open: Set<string>, clos
       <h2>${furigana('役')}確認</h2>
       ${closable ? '<button class="yk-close" data-act="yaku-close" aria-label="閉じる">×</button>' : ''}
     </div>
-    <p class="yk-lead">今のあなたの手牌で<b>成立しやすい順</b>です。役をタップすると説明と完成形の例が出ます。<br>
-      <span class="fit-great">◎狙える</span>　<span class="fit-good">○あと少し</span>　<span class="fit-far">△遠い</span>　<span class="fit-luck">☆偶然</span>
-      <span class="muted">（自風：${wind}）</span></p>
-    <div class="yk-list">${possible.map((r) => itemHtml(r, open, k)).join('')}${luck.map((r) => itemHtml(r, open, k)).join('')}</div>
-    ${impossible.length ? `
-    <details class="yk-impossible" data-yaku="__impossible" ${open.has('__impossible') ? 'open' : ''}>
-      <summary>この局ではもう成立しない${furigana('役')}（${impossible.length}）</summary>
-      <div class="yk-list">${impossible.map((r) => itemHtml(r, open, k)).join('')}</div>
-    </details>` : ''}`;
+    <p class="yk-lead">今のあなたの手牌で<b>成立しやすい順</b>です。役の名前にさわると完成形の図柄が、行をタップすると説明が出ます。<br>
+      <span class="fit-great">◎狙える</span>　<span class="fit-good">○あと少し</span>　<span class="muted">（自風：${wind}）</span></p>
+    <div class="yk-list">${near.length ? near.map((r) => itemHtml(r, open, k)).join('') : '<p class="muted small yk-empty">今はまだ、狙いやすい役がありません。下の「遠い役」も見てみましょう。</p>'}</div>
+    ${foldHtml('__far', '△ 遠い役', far, open, k)}
+    ${foldHtml('__luck', '☆ 偶然つく役', luck, open, k)}
+    ${foldHtml('__impossible', '× この局ではもう成立しない役', impossible, open, k)}`;
+}
+
+/** 役名にさわったときのポップアップ（完成形の図柄） */
+export function yakuPopHtml(name: string): string {
+  const y = YAKU.find((x) => x.name === name);
+  if (!y) return '';
+  const tiles = y.example
+    ? `<div class="yk-pop-tiles">${parseTiles(y.example).sort((a, b) => a - b).map((t) => tileHtml(t)).join('')}</div>`
+    : `<p class="yk-pop-desc">${furigana(y.desc)}</p>`;
+  return `<div class="yk-pop-title">${yakuRuby(y.name)}<span class="muted">の完成形の例</span></div>${tiles}`;
 }

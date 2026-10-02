@@ -7,7 +7,7 @@ import { CpuAgent, LEVEL_KAMI, LEVEL_ONI, levelLabel } from '../ai/cpu';
 import { tileHtml, meldHtml } from './tileView';
 import { helpButton, helpDialogHtml } from './help';
 import { T, furigana, kindRuby, roundRuby, yakuRuby } from './terms';
-import { yakuGuideHtml } from './yakuGuide';
+import { yakuGuideHtml, yakuPopHtml } from './yakuGuide';
 import { AssistSettings, DEFAULT_ASSIST, DangerMode, Advice, adviseCall, adviseTurn, discardInfo, handDanger, remainCounts } from './assist';
 import { outlook, Outlook } from '../ai/value';
 import { setSoundEnabled, sfx, unlockAudio } from './sound';
@@ -25,6 +25,8 @@ export interface Settings {
   speed: number;
   assist: AssistSettings;
   sound: boolean;
+  /** 画面が広いとき、役確認を卓の横に表示するか */
+  yakuSide: boolean;
 }
 
 type RuleKey = 'aka' | 'kuitan' | 'kiriage' | 'tobi' | 'agariYame' | 'extension';
@@ -44,7 +46,7 @@ const fmt = (n: number) => n.toLocaleString('ja-JP');
 const signed = (n: number) => (n > 0 ? `+${fmt(n)}` : n < 0 ? `−${fmt(-n)}` : '±0');
 
 function loadSettings(): Settings {
-  const def: Settings = { rules: { ...DEFAULT_RULES }, levels: [5, 5, 5], speed: 1, assist: { ...DEFAULT_ASSIST }, sound: true };
+  const def: Settings = { rules: { ...DEFAULT_RULES }, levels: [5, 5, 5], speed: 1, assist: { ...DEFAULT_ASSIST }, sound: true, yakuSide: true };
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (!raw) return def;
@@ -125,6 +127,16 @@ export class App implements GameUI {
       if ((d as HTMLDetailsElement).open) this.yakuOpenItems.add(name);
       else this.yakuOpenItems.delete(name);
     }, true);
+    // 役名にマウスを乗せたら図柄のポップアップ
+    document.addEventListener('mouseover', (e) => {
+      const pop = (e.target as HTMLElement).closest<HTMLElement>('[data-yaku-pop]');
+      if (pop) this.showYakuPop(pop);
+    });
+    document.addEventListener('mouseout', (e) => {
+      const from = (e.target as HTMLElement).closest('[data-yaku-pop]');
+      const to = (e as MouseEvent).relatedTarget as HTMLElement | null;
+      if (from && !to?.closest('[data-yaku-pop]')) this.hideYakuPop();
+    });
     // 画面の幅で、役確認を卓の横に出すかが変わる
     window.addEventListener('resize', () => this.render());
   }
@@ -351,6 +363,15 @@ export class App implements GameUI {
   // ------------------------------------------------------------------
 
   private onClick(e: Event): void {
+    const pop = (e.target as HTMLElement).closest<HTMLElement>('[data-yaku-pop]');
+    if (pop) {
+      // 役名のタップは説明の開閉ではなく、図柄のポップアップ
+      e.preventDefault();
+      if (this.popFor === pop.dataset.yakuPop) this.hideYakuPop();
+      else this.showYakuPop(pop);
+      return;
+    }
+    if (!(e.target as HTMLElement).closest('.yk-pop')) this.hideYakuPop();
     const el = (e.target as HTMLElement).closest<HTMLElement>('[data-act]');
     if (!el) return;
     const act = el.dataset.act!;
@@ -364,7 +385,12 @@ export class App implements GameUI {
         return;
       }
       case 'yaku-open':
-        this.yakuOpen = true;
+        if (this.yakuSideMode()) {
+          this.settings.yakuSide = !this.settings.yakuSide;
+          saveSettings(this.settings);
+        } else {
+          this.yakuOpen = true;
+        }
         this.render();
         return;
       case 'yaku-close':
@@ -520,7 +546,8 @@ export class App implements GameUI {
     const scroll = this.root.querySelector('.assist')?.scrollTop ?? 0;
     const yakuScroll = this.root.querySelector('.yaku-panel, .yaku-side')?.scrollTop ?? 0;
     // 画面が広ければ、役確認を卓の横に常に表示する
-    const side = this.yakuSideMode();
+    const wide = this.yakuSideMode();
+    const side = wide && this.settings.yakuSide;
     // 新しい捨て牌・ツモ牌だけアニメーションさせる（再描画のたびに動かないように）
     const ld = g.lastDiscard;
     const dKey = ld ? `${g.roundName}-${g.honba}-${ld.seat}-${ld.index}` : '';
@@ -531,8 +558,8 @@ export class App implements GameUI {
     this.animDraw = drawn !== null && drawn !== this.animatedDraw;
     this.animatedDraw = drawn;
     this.root.innerHTML = `
-      <div class="game">
-        <div class="board-wrap ${SPACE_DEBUG ? 'space-debug' : ''} ${side ? 'with-side' : ''}"><div class="board">
+      <div class="game ${side ? 'side-layout' : ''}">
+        <div class="board-wrap ${SPACE_DEBUG ? 'space-debug' : ''}"><div class="board">
           ${this.centerHtml(g)}
           ${[0, 1, 2, 3].map((s) => this.seatHtml(g, s)).join('')}
           ${this.soundButtonHtml()}
@@ -542,15 +569,16 @@ export class App implements GameUI {
           ${this.toolbarHtml()}
           ${SPACE_DEBUG ? centerFreeHtml() : ''}
           <div class="controls">${this.controlsHtml(g)}</div>
-          ${side ? '' : `<div class="yaku-corner"><button class="yaku-btn" data-act="yaku-open">${furigana('役')}確認</button>${helpButton('yaku')}</div>`}
-          ${!side && this.yakuOpen ? `<div class="yaku-panel">${this.yakuHtml(g, true)}</div>` : ''}
-        </div>${side ? `<aside class="yaku-side">${this.yakuHtml(g, false)}</aside>` : ''}</div>
-        ${!side && this.yakuOpen ? '<div class="yaku-backdrop" data-act="yaku-close"></div>' : ''}
+          <div class="yaku-corner"><button class="yaku-btn ${side ? 'on' : ''}" data-act="yaku-open" aria-pressed="${side}">${furigana('役')}確認</button>${helpButton('yaku')}</div>
+          ${!wide && this.yakuOpen ? `<div class="yaku-panel">${this.yakuHtml(g, true)}</div>` : ''}
+        </div></div>
+        ${!wide && this.yakuOpen ? '<div class="yaku-backdrop" data-act="yaku-close"></div>' : ''}
         <div class="me">
           <div class="my-melds">${g.players[0].melds.map((m) => meldHtml(m, 0, red)).join('')}</div>
           <div class="my-hand has-badges">${this.myHandHtml(g)}</div>
         </div>
         <div class="assist">${this.assistHtml(g)}</div>
+        ${side ? `<aside class="yaku-side">${this.yakuHtml(g, false)}</aside>` : ''}
         ${this.overlay ? `<div class="overlay"><div class="dialog">${this.overlay.html}</div></div>` : ''}
       </div>`;
     const assist = this.root.querySelector('.assist');
@@ -628,15 +656,41 @@ export class App implements GameUI {
         ${chip('hint', 'ヒント', a.hint)}
         ${chip('outlook', furigana('役') + '・期待値', a.outlook)}
         <div class="tool-row"><button class="chip ${a.danger !== 'off' ? 'on' : ''} ${a.danger === 'true' ? 'cheat' : ''}" data-act="danger">${dangerLabel}</button>${helpButton('danger')}</div>
-        ${chip('remain', '残り枚数', a.remain)}
+        ${chip('remain', '残り牌', a.remain)}
         ${chip('open', 'カンニング', a.open)}
       </div>`;
+  }
+
+  /** 役名のポップアップを、役名の上か下に出す */
+  private popFor: string | null = null;
+
+  private showYakuPop(target: HTMLElement): void {
+    const name = target.dataset.yakuPop!;
+    if (this.popFor === name && document.querySelector('.yk-pop')) return;
+    this.hideYakuPop();
+    this.popFor = name;
+    const el = document.createElement('div');
+    el.className = 'yk-pop';
+    el.innerHTML = yakuPopHtml(name);
+    document.body.appendChild(el);
+    const r = target.getBoundingClientRect();
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8));
+    const below = r.bottom + 6 + h <= window.innerHeight - 8;
+    el.style.left = `${left}px`;
+    el.style.top = `${below ? r.bottom + 6 : Math.max(8, r.top - h - 6)}px`;
+  }
+
+  private hideYakuPop(): void {
+    document.querySelectorAll('.yk-pop').forEach((e) => e.remove());
+    this.popFor = null;
   }
 
   /** 画面が広く、卓の横に役確認を置く余裕があるか */
   private yakuSideMode(): boolean {
     const board = Math.min(window.innerWidth, window.innerHeight - 200, 640);
-    return window.innerWidth >= board + 340;
+    return window.innerWidth >= board + 380;
   }
 
   private yakuHtml(g: Game, closable: boolean): string {
@@ -750,7 +804,7 @@ export class App implements GameUI {
       const rows = [[0, 18], [18, 34]].map(([s, e]) =>
         `<div class="r-row">${Array.from({ length: e - s }, (_, i) => cell(s + i)).join('')}</div>`).join('');
       // ほかの補助情報より先（パネルの一番上）に出す
-      parts.unshift(`<div class="remain-grid"><div class="r-title">残り枚数</div><div class="r-rows">${rows}</div></div>`);
+      parts.unshift(`<div class="remain-grid"><div class="r-title">残り牌</div><div class="r-rows">${rows}</div></div>`);
     }
     return parts.join('');
   }
