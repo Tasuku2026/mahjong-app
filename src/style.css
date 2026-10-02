@@ -1276,6 +1276,14 @@ button.danger-solid { background: #b8433c; border-color: #b8433c; }
 .graduate-banner p { margin: 4px 0 0; font-size: .85rem; line-height: 1.6; }
 
 /* 教室のクイズ: スマホで押し分けやすいよう、牌どうしの間隔を広く */
-.ls-tiles { gap: 10px; row-gap: 10px; }
-.ls-tiles:not(.hand) .tile.tap { --w: min(calc((100vw - 60px) / 8), 40px); }
-.ls-tiles.hand { gap: 3px; --w: min(calc((100vw - 60px - 39px) / 14.6), 36px); }
+/* 手牌の見本・組に分けるパズル: 牌をくっつけて1段に（14枚でも収まる大きさ） */
+.ls-tiles { gap: 0; flex-wrap: nowrap; --w: min(calc((100vw - 64px) / 14.4), 36px); }
+.ls-tiles.small { gap: 1px; }
+.ls-tiles.row .tile.sel { transform: translateY(-22%); }
+/* 牌を1枚選ぶクイズだけ: 大きく、間隔を広く（スマホで押し分けやすく） */
+.ls-tiles.quiz { gap: 10px; flex-wrap: wrap; row-gap: 10px; }
+.ls-tiles.quiz .tile { --w: min(calc((100vw - 60px) / 8), 40px); }
+.ls-tiles.hand { gap: 0; --w: min(calc((100vw - 64px) / 14.8), 36px); }
+/* できた組: 組の中はくっつけて、組どうしは少しあける。1段に収める */
+.ls-groups { flex-wrap: nowrap; gap: 4px; --w: min(calc((100vw - 64px - 16px) / 14.4), 30px); }
+.ls-group { padding: 2px; gap: 0; }

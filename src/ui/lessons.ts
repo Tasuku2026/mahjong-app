@@ -396,7 +396,7 @@ export class LessonUI {
       case 'pick': {
         const answerKind = kindOf(parseTiles(s.answer)[0]);
         stage = (s.shown ? `<div class="ls-label">${furigana(s.shown.label)}</div><div class="ls-tiles small">${tilesHtml(s.shown.tiles)}</div><div class="ls-label">${furigana('あなたの手牌')}</div>` : '')
-          + `<div class="ls-tiles">${parseTiles(s.tiles).map((t) => tileHtml(t, {
+          + `<div class="ls-tiles quiz">${parseTiles(s.tiles).map((t) => tileHtml(t, {
             classes: ['tap', ...(this.solved && kindOf(t) === answerKind ? ['right'] : [])],
             attrs: { 'data-act': 'ls-pick', 'data-tile': t },
           })).join('')}</div>`;
@@ -416,7 +416,7 @@ export class LessonUI {
           <div class="ls-label">できた${furigana('組')}</div>
           <div class="ls-groups">${this.groups.length ? this.groups.map((g) => `<span class="ls-group">${g.map((t) => tileHtml(t)).join('')}</span>`).join('') : '<span class="muted small">（まだありません）</span>'}</div>
           <div class="ls-label">のこりの${furigana('牌')}</div>
-          <div class="ls-tiles">${this.pool.map((t) => tileHtml(t, { classes: ['tap', ...(this.sel.has(t) ? ['sel'] : [])], attrs: { 'data-act': 'ls-sel', 'data-tile': t } })).join('')}</div>`;
+          <div class="ls-tiles row">${this.pool.map((t) => tileHtml(t, { classes: ['tap', ...(this.sel.has(t) ? ['sel'] : [])], attrs: { 'data-act': 'ls-sel', 'data-tile': t } })).join('')}</div>`;
         talk = this.talkHtml('h', s.text);
         if (!this.solved) actions = `<button class="primary" data-act="ls-group">${furigana('組にする')}</button><button class="secondary" data-act="ls-reset">${furigana('やり直す')}</button>`;
         break;
