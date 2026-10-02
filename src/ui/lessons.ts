@@ -48,7 +48,7 @@ export const LESSONS: Lesson[] = [
       { t: 'talk', who: 'h', tiles: '123m', text: 'ひとつめは順子。同じ種類で、数字が3つ続いたものじゃ。' },
       { t: 'talk', who: 'h', tiles: '555p', text: 'ふたつめは刻子。まったく同じ牌3枚じゃ。' },
       { t: 'talk', who: 'h', tiles: '77s', text: 'そして雀頭。同じ牌2枚のことじゃ。これは1つだけ作る。' },
-      { t: 'talk', who: 'h', tiles: '123m456p234777s55z', text: 'これが和了の形じゃ。123萬・456筒・234索・777索の4組と、白白の雀頭。' },
+      { t: 'talk', who: 'h', tiles: '123m 456p 234s 777s 55z', text: 'これが和了の形じゃ。123萬・456筒・234索・777索の4組と、白白の雀頭。' },
       { t: 'choice', text: '順子になっているのはどれじゃ？', options: [{ tiles: '135m' }, { tiles: '456p' }, { tiles: '1m2p3s' }], answer: 1, explain: '正解！456筒は同じ筒子で数字が続いておる。135は飛んでおるし、色がちがうものも順子にはならんのじゃ。' },
       { t: 'talk', who: 'p', text: '形はわかったけど、実際にやってみたいぴよ。' },
       { t: 'group', text: 'では、この14枚を組に分けてみよう。3枚（または雀頭の2枚）をタップして選び、「組にする」を押すんじゃ。', tiles: '234m666p789s345s11z' },
@@ -77,9 +77,9 @@ export const LESSONS: Lesson[] = [
     id: 4, title: 'テンパイと待ち', sub: 'あと1枚で和了の状態',
     steps: [
       { t: 'talk', who: 'h', text: 'あと1枚で和了できる状態を聴牌（テンパイ）という。その1枚のことを待ちというんじゃ。' },
-      { t: 'talk', who: 'h', tiles: '123m456p789s23s55z', text: 'この手は23索がもう少し。1索か4索がくれば順子になって和了じゃ。待ちが2種類ある、とてもよい形じゃな。' },
-      { t: 'choice', text: 'この手の待ちはどれじゃ？', tiles: '123m456p789s46s55z', options: [{ tiles: '5s' }, { tiles: '4s' }, { tiles: '7s' }], answer: 0, explain: '正解！46索のまん中、5索がくれば456索の順子になるぞ。' },
-      { t: 'choice', text: 'では、この手の待ちは？', tiles: '123m456p789s234s5z', options: [{ tiles: '5z' }, { tiles: '2s' }, { tiles: '5s' }], answer: 0, explain: 'お見事！4つの組はもうできておるから、白がもう1枚くれば雀頭になって和了じゃ。' },
+      { t: 'talk', who: 'h', tiles: '123m 456p 789s 23s 55z', text: 'この手は23索がもう少し。1索か4索がくれば順子になって和了じゃ。待ちが2種類ある、とてもよい形じゃな。' },
+      { t: 'choice', text: 'この手の待ちはどれじゃ？', tiles: '123m 456p 789s 46s 55z', options: [{ tiles: '5s' }, { tiles: '4s' }, { tiles: '7s' }], answer: 0, explain: '正解！46索のまん中、5索がくれば456索の順子になるぞ。' },
+      { t: 'choice', text: 'では、この手の待ちは？', tiles: '123m 456p 789s 234s 5z', options: [{ tiles: '5z' }, { tiles: '2s' }, { tiles: '5s' }], answer: 0, explain: 'お見事！4つの組はもうできておるから、白がもう1枚くれば雀頭になって和了じゃ。' },
       { t: 'talk', who: 'p', text: '待ちがわかると、どきどきするぴよ！' },
     ],
   },
@@ -90,10 +90,10 @@ export const LESSONS: Lesson[] = [
       { t: 'talk', who: 'p', face: 'surprised', text: 'えっ！？形だけじゃだめぴよ！？' },
       { t: 'talk', who: 'h', text: '役はたくさんあるが、最初は3つだけ覚えれば十分じゃ。' },
       { t: 'talk', who: 'h', text: 'ひとつめは立直。鳴かずにテンパイしたら「リーチ」と宣言する。それだけで役になる、いちばん簡単な役じゃ。' },
-      { t: 'talk', who: 'h', tiles: '234m567p345s678s55p', text: 'ふたつめは断幺九。2から8の数字だけで作る役じゃ。1・9・字牌を使わない。' },
-      { t: 'talk', who: 'h', tiles: '555z123m456p789s11p', text: 'みっつめは役牌。白・發・中などを3枚そろえる役じゃ。' },
-      { t: 'choice', text: 'この手を、人の捨て牌で和了ろうとしておる（リーチはしていない）。和了れるかな？', tiles: '234m567p345s678s55p', options: [{ text: '和了れる（断幺九がある）' }, { text: '和了れない' }], answer: 0, explain: '正解！2〜8だけでできておるから、断幺九の役がついて和了れるぞ。' },
-      { t: 'choice', text: 'では、この手は？（リーチはしていない・人の捨て牌で和了る）', tiles: '123m456p789s111s99p', options: [{ text: '和了れる' }, { text: '和了れない（役がない）' }], answer: 1, explain: 'そのとおり！形はできておるが、1や9があるから断幺九ではないし、役牌もない。リーチをしておけば和了れたんじゃ。' },
+      { t: 'talk', who: 'h', tiles: '234m 567p 345s 678s 55p', text: 'ふたつめは断幺九。2から8の数字だけで作る役じゃ。1・9・字牌を使わない。' },
+      { t: 'talk', who: 'h', tiles: '555z 123m 456p 789s 11p', text: 'みっつめは役牌。白・發・中などを3枚そろえる役じゃ。' },
+      { t: 'choice', text: 'この手を、人の捨て牌で和了ろうとしておる（リーチはしていない）。和了れるかな？', tiles: '234m 567p 345s 678s 55p', options: [{ text: '和了れる（断幺九がある）' }, { text: '和了れない' }], answer: 0, explain: '正解！2〜8だけでできておるから、断幺九の役がついて和了れるぞ。' },
+      { t: 'choice', text: 'では、この手は？（リーチはしていない・人の捨て牌で和了る）', tiles: '123m 456p 789s 111s 99p', options: [{ text: '和了れる' }, { text: '和了れない（役がない）' }], answer: 1, explain: 'そのとおり！形はできておるが、1や9があるから断幺九ではないし、役牌もない。リーチをしておけば和了れたんじゃ。' },
       { t: 'talk', who: 'h', text: 'どの役を目指せばいいか迷ったら、対局中の「役ナビ」を見るとよいぞ。今の手で狙いやすい役を教えてくれる。' },
     ],
   },
@@ -174,7 +174,10 @@ export function saveProgress(p: LessonProgress): void {
 // 画面
 // ---------------------------------------------------------------
 
-const tilesHtml = (s: string, cls = '') => parseTiles(s).map((t) => tileHtml(t, { classes: cls ? [cls] : [] })).join('');
+/** 牌の列。空白で区切ると、組ごとに少しすき間を空けて並べる（例: '123m 456p 55z'） */
+const tilesHtml = (s: string, cls = '') => s.trim().split(/\s+/)
+  .map((part) => parseTiles(part).map((t) => tileHtml(t, { classes: cls ? [cls] : [] })).join(''))
+  .join('<span class="ls-sep"></span>');
 
 export interface LessonHooks {
   startGraduation(): void;

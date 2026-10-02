@@ -1277,7 +1277,9 @@ button.danger-solid { background: #b8433c; border-color: #b8433c; }
 
 /* 教室のクイズ: スマホで押し分けやすいよう、牌どうしの間隔を広く */
 /* 手牌の見本・組に分けるパズル: 牌をくっつけて1段に（14枚でも収まる大きさ） */
-.ls-tiles { gap: 0; flex-wrap: nowrap; --w: min(calc((100vw - 64px) / 14.4), 36px); }
+.ls-tiles { gap: 0; flex-wrap: nowrap; --w: min(calc((100vw - 64px) / 15.6), 34px); }
+/* 組と組の間の小さなすき間（3・3・3・3・2 が見分けやすいように） */
+.ls-sep { flex: none; width: calc(var(--w) * .3); }
 .ls-tiles.small { gap: 1px; }
 .ls-tiles.row .tile.sel { transform: translateY(-22%); }
 /* 牌を1枚選ぶクイズだけ: 大きく、間隔を広く（スマホで押し分けやすく） */
