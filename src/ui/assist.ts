@@ -1,4 +1,4 @@
-// プレイヤー向けの補助情報（残り枚数・危険度・ヒント・役と期待値）
+// プレイヤー向けの補助情報（残り牌・危険牌・おすすめ・見込み）
 import { CallAction, CallOptions, Game, TurnAction, TurnOptions } from '../core/game';
 import { Kind, Tile, kindOf } from '../core/tiles';
 import { CpuAgent, evaluateDiscards } from '../ai/cpu';
@@ -71,7 +71,7 @@ export function discardInfo(g: Game, tile: Tile, seat = 0): DiscardInfo {
 
 const hintAgent = new CpuAgent(10);
 
-/** ヒント（レベル10のCPUと同じ判断） */
+/** おすすめ（レベル10のCPUと同じ判断） */
 export type Advice =
   | { kind: 'turn'; action: TurnAction; fold: boolean }
   | { kind: 'call'; action: CallAction };

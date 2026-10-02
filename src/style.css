@@ -792,7 +792,7 @@ button.danger-solid { background: #b8433c; border-color: #b8433c; }
   background: rgba(0, 0, 0, .28);
 }
 .tools button.chip { font-size: .68rem; }
-.tools button.chip[data-act="danger"] { min-width: calc(6em + 10px); }
+.tools button.chip[data-act="danger"] { min-width: calc(6em + 6px); padding: 0 4px 4px; }
 
 /* 卓の左下の隅: 役確認ボタンと？ */
 .yaku-corner {

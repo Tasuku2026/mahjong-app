@@ -1,4 +1,4 @@
-// 役確認: 役の説明と、今の手牌で各役を成立させられる確率・あと何枚必要か
+// 役ナビ: 役の説明と、今の手牌で各役を成立させられる確率・あと何枚必要か
 import { Game } from '../core/game';
 import { Kind, Tile, kindOf, toCounts, isHonor, isYaochu, isDragon, isTerminal, suitOf, parseTiles, WIND_NAMES } from '../core/tiles';
 import { calcShanten, shantenChiitoi, shantenKokushi } from '../core/shanten';
@@ -543,7 +543,7 @@ function estimate(fn: ShFn, x: SCtx, hc: number[], cc: number[], unseen: number[
     hc[k]--;
     cc[k]--;
   }
-  // 「役・期待値」と同じ目安: テンパイまでの距離ごとの標準的な和了率を、残り巡目と役に役立つ牌の枚数で補正
+  // 「見込み」と同じ目安: テンパイまでの距離ごとの標準的な和了率を、残り巡目と役に役立つ牌の枚数で補正
   const sh = need - 1;
   const base = [0.5, 0.35, 0.22, 0.12, 0.06][sh];
   const typical = [8, 20, 35, 50, 60][sh];
@@ -667,7 +667,7 @@ function foldHtml(key: string, title: string, list: Row[], open: Set<string>, ku
 }
 
 /**
- * 役確認の中身。
+ * 役ナビの中身。
  * unseen: 自分から見えていない枚数、open: 開いている欄・役、closable: 閉じるボタンを出すか
  */
 export function yakuGuideHtml(g: Game, unseen: number[], open: Set<string>, closable: boolean, aim: string | null = null): string {
@@ -683,7 +683,7 @@ export function yakuGuideHtml(g: Game, unseen: number[], open: Set<string>, clos
   const k = g.rules.kuitan;
   return `
     <div class="yk-head">
-      <h2>${furigana('役')}確認</h2>
+      <h2>${furigana('役')}ナビ</h2>
       ${closable ? '<button class="yk-close" data-act="yaku-close" aria-label="閉じる">×</button>' : ''}
     </div>
     <p class="yk-lead">今のあなたの手牌で<b>成立しやすい順</b>です。役の名前にさわると完成形の図柄が、行をタップすると説明と「この役を狙う」ボタンが出ます。<br>

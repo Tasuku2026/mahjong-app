@@ -24,7 +24,7 @@ export interface Settings {
   speed: number;
   assist: AssistSettings;
   sound: boolean;
-  /** 画面が広いとき、役確認を卓の横に表示するか */
+  /** 画面が広いとき、役ナビを卓の横に表示するか */
   yakuSide: boolean;
 }
 
@@ -101,12 +101,12 @@ export class App implements GameUI {
   private hintCache: { pending: Pending; advice: Advice } | null = null;
   /** この対局での自分の成績 */
   private tally: RoundTally = emptyTally();
-  /** 役確認ウインドウを開いているか（画面が狭いときのみ。対局は止めない） */
+  /** 役ナビウインドウを開いているか（画面が狭いときのみ。対局は止めない） */
   private yakuOpen = false;
   /** 「この役を狙う」で選んだ役（局が終わると解除） */
   private aimYaku: string | null = null;
   private aimCache: { pending: Pending; aim: string; tile: Tile | null } | null = null;
-  /** 役確認で説明を開いている役（再描画しても開いたままにする） */
+  /** 役ナビで説明を開いている役（再描画しても開いたままにする） */
   private yakuOpenItems = new Set<string>();
   /** 対局ごとに増える番号（途中でやめた対局を見分ける） */
   private gameToken = 0;
@@ -122,7 +122,7 @@ export class App implements GameUI {
     setSoundEnabled(this.settings.sound);
     // ヘルプは root の外（body 直下）に出すため document で受ける
     document.addEventListener('click', (e) => this.onClick(e));
-    // 役確認で開いた説明は、再描画しても開いたままにする
+    // 役ナビで開いた説明は、再描画しても開いたままにする
     document.addEventListener('toggle', (e) => {
       const d = e.target as HTMLElement;
       const name = d.dataset?.yaku;
@@ -140,7 +140,7 @@ export class App implements GameUI {
       const to = (e as MouseEvent).relatedTarget as HTMLElement | null;
       if (from && !to?.closest('[data-yaku-pop]')) this.hideYakuPop();
     });
-    // 画面の幅で、役確認を卓の横に出すかが変わる
+    // 画面の幅で、役ナビを卓の横に出すかが変わる
     window.addEventListener('resize', () => this.render());
   }
 
@@ -590,7 +590,7 @@ export class App implements GameUI {
     // 再描画で補助パネルのスクロール位置が戻らないようにする
     const scroll = this.root.querySelector('.assist')?.scrollTop ?? 0;
     const yakuScroll = this.root.querySelector('.yaku-panel, .yaku-side')?.scrollTop ?? 0;
-    // 画面が広ければ、役確認を卓の横に常に表示する
+    // 画面が広ければ、役ナビを卓の横に常に表示する
     const wide = this.yakuSideMode();
     const side = wide && this.settings.yakuSide;
     // 新しい捨て牌・ツモ牌だけアニメーションさせる（再描画のたびに動かないように）
@@ -615,7 +615,7 @@ export class App implements GameUI {
           ${this.toolbarHtml()}
           <div class="controls">${this.controlsHtml(g)}</div>
           ${this.aimTagHtml(g)}
-          <div class="yaku-corner"><button class="yaku-btn ${side ? 'on' : ''}" data-act="yaku-open" aria-pressed="${side}">${furigana('役')}確認</button>${helpButton('yaku')}</div>
+          <div class="yaku-corner"><button class="yaku-btn ${side ? 'on' : ''}" data-act="yaku-open" aria-pressed="${side}">${furigana('役')}ナビ</button>${helpButton('yaku')}</div>
           ${!wide && this.yakuOpen ? `<div class="yaku-panel">${this.yakuHtml(g, true)}</div>` : ''}
         </div></div>
         ${!wide && this.yakuOpen ? '<div class="yaku-backdrop" data-act="yaku-close"></div>' : ''}
@@ -690,13 +690,13 @@ export class App implements GameUI {
   private toolbarHtml(): string {
     const a = this.settings.assist;
     const chip = (key: string, label: string, on: boolean) =>
-      `<div class="tool-row"><button class="chip ${on ? 'on' : ''}" data-act="toggle" data-key="${key}" aria-pressed="${on}">${label}</button>${helpButton(key)}</div>`;
-    const dangerLabel = { off: '危険度', est: '危険度：推定', true: '危険度：透視' }[a.danger];
+      `<div class="tool-row"><button class="chip ${on ? 'on' : ''} ${on && key === 'open' ? 'cheat' : ''}" data-act="toggle" data-key="${key}" aria-pressed="${on}">${label}</button>${helpButton(key)}</div>`;
+    const dangerLabel = { off: '危険牌', est: '危険牌：予想', true: '危険牌：正解' }[a.danger];
     // 卓の右下の空いている角に縦1列で置く。それぞれの右に説明の？
     return `
       <div class="tools">
-        ${chip('hint', 'ヒント', a.hint)}
-        ${chip('outlook', furigana('役') + '・期待値', a.outlook)}
+        ${chip('hint', 'おすすめ', a.hint)}
+        ${chip('outlook', '見込み', a.outlook)}
         <div class="tool-row"><button class="chip ${a.danger !== 'off' ? 'on' : ''} ${a.danger === 'true' ? 'cheat' : ''}" data-act="danger">${dangerLabel}</button>${helpButton('danger')}</div>
         ${chip('remain', '残り牌', a.remain)}
         ${chip('open', 'カンニング', a.open)}
@@ -758,7 +758,7 @@ export class App implements GameUI {
     return `<div class="aim-tag"><span>◆狙い：${yakuRuby(this.aimYaku)} ${state}</span><button data-act="yaku-aim" data-yaku="${this.aimYaku}" aria-label="狙いを解除">×</button></div>`;
   }
 
-  /** 画面が広く、卓の横に役確認を置く余裕があるか */
+  /** 画面が広く、卓の横に役ナビを置く余裕があるか */
   private yakuSideMode(): boolean {
     const board = Math.min(window.innerWidth, window.innerHeight - 200, 640);
     return window.innerWidth >= board + 380;
