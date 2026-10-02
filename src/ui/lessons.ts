@@ -1,7 +1,7 @@
 // まーじゃん教室: ルールをまったく知らない人向けのコース（ほー博士とぴよの会話で進む）
 import { Tile, kindOf, parseTiles } from '../core/tiles';
 import { tileHtml } from './tileView';
-import { furigana } from './terms';
+import { furiganaKids as furigana } from './terms';
 import { charaFor, Expr } from './characters';
 
 type Who = 'h' | 'p';
@@ -206,7 +206,7 @@ export class LessonUI {
       const done = l.id === 9 ? p.graduated : p.done.includes(l.id);
       return `
         <button class="ls-item ${done ? 'done' : ''}" data-act="ls-open" data-id="${l.id}">
-          <span class="ls-no">${l.id === 9 ? '卒業' : `${l.id}`}</span>
+          <span class="ls-no">${l.id === 9 ? furigana('卒業') : `${l.id}`}</span>
           <span class="ls-text"><b>${furigana(l.title)}</b><small>${furigana(l.sub)}</small></span>
           <span class="ls-stamp">${done ? '<span class="stamp-ok">済</span>' : ''}</span>
         </button>`;
@@ -214,12 +214,12 @@ export class LessonUI {
     const next = LESSONS.find((l) => (l.id === 9 ? !p.graduated : !p.done.includes(l.id)));
     this.root.innerHTML = `
       <div class="start lesson-menu">
-        <h1>まーじゃん教室</h1>
-        <div class="ls-hero">${h.face('happy')}<p>麻雀のルールを、ゼロから楽しく覚えよう！ 1つのレッスンは2〜3分じゃ。上から順番に進めるのがおすすめじゃぞ。</p></div>
-        ${p.graduated ? '<p class="ls-graduated">🎓 卒業おめでとう！ もう立派な雀士じゃ</p>' : ''}
+        <h1>まーじゃん${furigana('教室')}</h1>
+        <div class="ls-hero">${h.face('happy')}<p>${furigana('麻雀のルールを、ゼロから楽しく覚えよう！ 1つのレッスンは2〜3分じゃ。上から順番に進めるのがおすすめじゃぞ。')}</p></div>
+        ${p.graduated ? `<p class="ls-graduated">🎓 ${furigana('卒業おめでとう！ もう立派な雀士じゃ')}</p>` : ''}
         <div class="ls-list">${items}</div>
-        ${next ? `<button class="primary big" data-act="ls-open" data-id="${next.id}">${next.id === 9 ? '卒業対局へ' : `レッスン${next.id}から始める`}</button>` : ''}
-        <button class="big secondary" data-act="ls-top">トップ画面に戻る</button>
+        ${next ? `<button class="primary big" data-act="ls-open" data-id="${next.id}">${furigana(next.id === 9 ? '卒業対局へ' : `レッスン${next.id}から始める`)}</button>` : ''}
+        <button class="big secondary" data-act="ls-top">トップ${furigana('画面に戻る')}</button>
       </div>`;
   }
 
@@ -374,7 +374,7 @@ export class LessonUI {
 
   private talkHtml(who: Who, text: string, face: Expr = 'normal'): string {
     const c = who === 'h' ? charaFor(9) : charaFor(1);
-    return `<div class="ls-talk ls-${who}">${c.face(face)}<div class="ls-bubble"><b>${c.name}</b><p>${furigana(text)}</p></div></div>`;
+    return `<div class="ls-talk ls-${who}">${c.face(face)}<div class="ls-bubble"><b>${furigana(c.name)}</b><p>${furigana(text)}</p></div></div>`;
   }
 
   private render(): void {
@@ -385,7 +385,7 @@ export class LessonUI {
     let talk = '';
     let actions = '';
     const canNext = s.t === 'talk' || this.solved;
-    const nextBtn = `<button class="primary" data-act="ls-next" ${canNext ? '' : 'disabled'}>${this.step === l.steps.length - 1 ? 'レッスン完了！' : '次へ'}</button>`;
+    const nextBtn = `<button class="primary" data-act="ls-next" ${canNext ? '' : 'disabled'}>${furigana(this.step === l.steps.length - 1 ? 'レッスン完了！' : '次へ')}</button>`;
     const prevBtn = this.step > 0 ? '<button class="secondary" data-act="ls-prev">もどる</button>' : '';
 
     switch (s.t) {
@@ -395,7 +395,7 @@ export class LessonUI {
         break;
       case 'pick': {
         const answerKind = kindOf(parseTiles(s.answer)[0]);
-        stage = (s.shown ? `<div class="ls-label">${furigana(s.shown.label)}</div><div class="ls-tiles small">${tilesHtml(s.shown.tiles)}</div><div class="ls-label">あなたの手牌</div>` : '')
+        stage = (s.shown ? `<div class="ls-label">${furigana(s.shown.label)}</div><div class="ls-tiles small">${tilesHtml(s.shown.tiles)}</div><div class="ls-label">${furigana('あなたの手牌')}</div>` : '')
           + `<div class="ls-tiles">${parseTiles(s.tiles).map((t) => tileHtml(t, {
             classes: ['tap', ...(this.solved && kindOf(t) === answerKind ? ['right'] : [])],
             attrs: { 'data-act': 'ls-pick', 'data-tile': t },
@@ -413,12 +413,12 @@ export class LessonUI {
         break;
       case 'group':
         stage = `
-          <div class="ls-label">できた組</div>
+          <div class="ls-label">できた${furigana('組')}</div>
           <div class="ls-groups">${this.groups.length ? this.groups.map((g) => `<span class="ls-group">${g.map((t) => tileHtml(t)).join('')}</span>`).join('') : '<span class="muted small">（まだありません）</span>'}</div>
-          <div class="ls-label">のこりの牌</div>
+          <div class="ls-label">のこりの${furigana('牌')}</div>
           <div class="ls-tiles">${this.pool.map((t) => tileHtml(t, { classes: ['tap', ...(this.sel.has(t) ? ['sel'] : [])], attrs: { 'data-act': 'ls-sel', 'data-tile': t } })).join('')}</div>`;
         talk = this.talkHtml('h', s.text);
-        if (!this.solved) actions = '<button class="primary" data-act="ls-group">組にする</button><button class="secondary" data-act="ls-reset">やり直す</button>';
+        if (!this.solved) actions = `<button class="primary" data-act="ls-group">${furigana('組にする')}</button><button class="secondary" data-act="ls-reset">${furigana('やり直す')}</button>`;
         break;
       case 'play': {
         const sc = s.script[Math.min(this.si, s.script.length - 1)];
@@ -427,7 +427,7 @@ export class LessonUI {
           classes: [...extra, ...(this.solved ? [] : kindOf(t) === target ? ['tap', 'glow'] : ['dim'])],
           attrs: { 'data-act': 'ls-discard', 'data-tile': t },
         });
-        stage = `<div class="ls-label">あなたの手牌（右はしが引いた牌）</div>
+        stage = `<div class="ls-label">${furigana('あなたの手牌（右はしが引いた牌）')}</div>
           <div class="ls-tiles hand">${this.hand.map((t) => one(t)).join('')}${this.drawn !== null ? `<span class="ls-gap"></span>${one(this.drawn, ['drawn'])}` : ''}</div>`;
         talk = this.talkHtml('h', this.solved ? 'ツモ！見事に和了ったぞ！' : sc.say, this.solved ? 'happy' : 'normal');
         if (!this.solved && !sc.discard) actions = '<button class="win" data-act="ls-tsumo">ツモ</button>';
@@ -435,7 +435,7 @@ export class LessonUI {
       }
       case 'graduate':
         talk = this.talkHtml('h', s.text, 'happy');
-        actions = '<button class="primary big" data-act="ls-graduate">卒業対局を始める</button>';
+        actions = `<button class="primary big" data-act="ls-graduate">${furigana('卒業対局を始める')}</button>`;
         break;
     }
     const fb = this.feedback
@@ -444,8 +444,8 @@ export class LessonUI {
     this.root.innerHTML = `
       <div class="lesson">
         <div class="ls-top">
-          <button class="secondary" data-act="ls-menu">← 教室</button>
-          <div class="ls-title"><small>${l.id === 9 ? '卒業' : `レッスン${l.id}`}</small>${furigana(l.title)}</div>
+          <button class="secondary" data-act="ls-menu">← ${furigana('教室')}</button>
+          <div class="ls-title"><small>${furigana(l.id === 9 ? '卒業' : `レッスン${l.id}`)}</small>${furigana(l.title)}</div>
         </div>
         <div class="ls-dots">${dots}</div>
         <div class="ls-stage">${stage}</div>
@@ -461,11 +461,11 @@ export class LessonUI {
     this.root.innerHTML = `
       <div class="lesson ls-complete">
         <div class="ls-stamp-big">済</div>
-        <h2>レッスン${l.id}「${furigana(l.title)}」完了！</h2>
+        <h2>レッスン${l.id}「${furigana(l.title)}」${furigana('完了！')}</h2>
         ${this.talkHtml('p', 'やったぴよ！また1つ賢くなったぴよ！', 'happy')}
         <div class="ls-actions">
-          ${nextL ? `<button class="primary big" data-act="ls-open" data-id="${nextL.id}">${nextL.id === 9 ? '卒業対局へ' : `次のレッスン（${furigana(nextL.title)}）`}</button>` : ''}
-          <button class="big secondary" data-act="ls-menu">教室に戻る</button>
+          ${nextL ? `<button class="primary big" data-act="ls-open" data-id="${nextL.id}">${furigana(nextL.id === 9 ? '卒業対局へ' : `次のレッスン（${nextL.title}）`)}</button>` : ''}
+          <button class="big secondary" data-act="ls-menu">${furigana('教室に戻る')}</button>
         </div>
       </div>`;
   }

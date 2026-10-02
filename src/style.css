@@ -1274,3 +1274,8 @@ button.danger-solid { background: #b8433c; border-color: #b8433c; }
 .graduate-banner { display: flex; gap: 10px; align-items: center; padding: 10px; margin-bottom: 10px; border-radius: 12px; background: linear-gradient(120deg, rgba(242, 179, 61, .25), rgba(99, 211, 143, .2)); border: 1px solid var(--accent); }
 .graduate-banner .chara-svg { width: 52px; height: 52px; flex: none; }
 .graduate-banner p { margin: 4px 0 0; font-size: .85rem; line-height: 1.6; }
+
+/* 教室のクイズ: スマホで押し分けやすいよう、牌どうしの間隔を広く */
+.ls-tiles { gap: 10px; row-gap: 10px; }
+.ls-tiles:not(.hand) .tile.tap { --w: min(calc((100vw - 60px) / 8), 40px); }
+.ls-tiles.hand { gap: 3px; --w: min(calc((100vw - 60px - 39px) / 14.6), 36px); }

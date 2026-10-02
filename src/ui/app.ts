@@ -6,7 +6,7 @@ import { DEFAULT_RULES, Rules } from '../core/types';
 import { CpuAgent, LEVEL_KAMI, LEVEL_ONI, levelLabel } from '../ai/cpu';
 import { tileHtml, meldHtml } from './tileView';
 import { helpButton, helpDialogHtml } from './help';
-import { T, furigana, kindRuby, roundRuby, yakuRuby } from './terms';
+import { T, furigana, furiganaKids, kindRuby, roundRuby, yakuRuby } from './terms';
 import { CHARAS, Chara, Expr, Talk, charaFor, pickLine } from './characters';
 import { LessonUI, loadProgress, saveProgress } from './lessons';
 import { aimDiscard, yakuGuideHtml, yakuNeed, yakuPopHtml } from './yakuGuide';
@@ -179,7 +179,7 @@ export class App implements GameUI {
       <div class="start">
         <h1>ひとり麻雀</h1>
         <p class="sub">CPU 3人と対局する4人打ちリーチ麻雀</p>
-        <button class="lesson-banner" data-act="lesson">${charaFor(9).face('happy')}<span><b>まーじゃん教室</b><small>ルールを知らない人はここから！${loadProgress().graduated ? '（卒業ずみ）' : ''}</small></span></button>
+        <button class="lesson-banner" data-act="lesson">${charaFor(9).face('happy')}<span><b>まーじゃん${furiganaKids('教室')}</b><small>${furiganaKids('ルールを知らない人はここから！')}${loadProgress().graduated ? `（${furiganaKids('卒業')}ずみ）` : ''}</small></span></button>
         <div class="start-grid">
         <section class="card">
           <h2>対局</h2>
@@ -237,10 +237,10 @@ export class App implements GameUI {
         <div class="dialog intro-dialog">
           <div class="intro-face">${h.face('happy')}</div>
           <h2>はじめまして！</h2>
-          <p>わしは、ほー博士じゃ。麻雀のルールを知らなくても大丈夫。<b>まーじゃん教室</b>で、ゼロから楽しく覚えられるぞ。</p>
+          <p>${furiganaKids('わしは、ほー博士じゃ。麻雀のルールを知らなくても大丈夫。')}<b>まーじゃん${furiganaKids('教室')}</b>${furiganaKids('で、ゼロから楽しく覚えられるぞ。')}</p>
           <div class="btns">
-            <button class="primary" data-act="lesson">教室へ行く</button>
-            <button data-act="intro-later">もう知っているので、あとで</button>
+            <button class="primary" data-act="lesson">${furiganaKids('教室へ行く')}</button>
+            <button data-act="intro-later">${furiganaKids('もう知っているので、あとで')}</button>
           </div>
         </div>
       </div>`);
@@ -535,7 +535,7 @@ export class App implements GameUI {
         if (!p.graduated) {
           p.graduated = true;
           saveProgress(p);
-          banner = `<div class="graduate-banner">${charaFor(9).face('happy')}<div><b>🎓 卒業おめでとう！</b><p>初めての和了じゃ！ これで、まーじゃん教室は卒業じゃ。このまま対局を続けてもいいし、トップ画面で好きな相手を選んで遊ぶのもよいぞ。</p></div></div>`;
+          banner = `<div class="graduate-banner">${charaFor(9).face('happy')}<div><b>🎓 ${furiganaKids('卒業おめでとう！')}</b><p>${furiganaKids('はじめての和了じゃ！ これで、まーじゃん教室は卒業じゃ。このまま対局を続けてもいいし、トップ画面で好きな相手を選んで遊ぶのもよいぞ。')}</p></div></div>`;
         }
       }
       this.overlay = { html: banner + this.resultHtml(g, r), resolve };
