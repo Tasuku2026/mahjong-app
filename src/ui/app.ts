@@ -145,13 +145,6 @@ export class App implements GameUI {
       const to = (e as MouseEvent).relatedTarget as HTMLElement | null;
       if (from && !to?.closest('[data-yaku-pop]')) this.hideYakuPop();
     });
-    // レベルを選び直したら、その子の顔と名前に変える
-    document.addEventListener('change', (e) => {
-      const sel = (e.target as HTMLElement).closest<HTMLSelectElement>('select[data-level]');
-      if (!sel) return;
-      const box = this.root.querySelector(`[data-chara-for="${sel.dataset.level}"]`);
-      if (box) box.innerHTML = this.charaMiniHtml(Number(sel.value));
-    });
     // 画面の幅で、役ナビを卓の横に出すかが変わる
     window.addEventListener('resize', () => this.render());
   }
@@ -163,15 +156,14 @@ export class App implements GameUI {
   showStart(): void {
     this.game = null;
     const s = this.settings;
+    // アイコン付きの選択欄（ふつうのドロップダウンには絵を入れられないので自作）
     const levelSelect = (i: number, label: string) => `
-      <label class="row"><span>${furigana(label)}</span>
-        <select data-level="${i}">
-          ${Array.from({ length: 10 }, (_, n) => `<option value="${n + 1}" ${s.levels[i] === n + 1 ? 'selected' : ''}>レベル ${n + 1}</option>`).join('')}
-          <option value="${LEVEL_ONI}" ${s.levels[i] === LEVEL_ONI ? 'selected' : ''}>レベル鬼</option>
-          <option value="${LEVEL_KAMI}" ${s.levels[i] === LEVEL_KAMI ? 'selected' : ''}>レベル神</option>
-        </select>
-        <div class="lv-chara" data-chara-for="${i}">${this.charaMiniHtml(s.levels[i])}</div>
-      </label>`;
+      <div class="row lv-row"><span>${furigana(label)}</span>
+        <div class="lv-pick" data-pick="${i}">
+          <button type="button" class="lv-btn" data-act="lv-open" data-i="${i}" aria-haspopup="listbox">${this.levelItemHtml(s.levels[i])}<span class="lv-caret">▾</span></button>
+          <input type="hidden" data-level="${i}" value="${s.levels[i]}">
+        </div>
+      </div>`;
     this.root.innerHTML = `
       <div class="start">
         <h1>ひとり麻雀</h1>
@@ -218,10 +210,14 @@ export class App implements GameUI {
   // キャラクター
   // ------------------------------------------------------------------
 
-  /** トップ画面のレベル欄の下: 顔と名前 */
-  private charaMiniHtml(level: number): string {
+  /** 「Lv1　ぴよ　[顔]」（withSpecies: 一覧では動物の種類も） */
+  private levelItemHtml(level: number, withSpecies = false): string {
     const c = charaFor(level);
-    return `<span class="lv-face">${c.face('normal')}</span><span class="lv-name">${c.name}<small>${c.species}</small></span>`;
+    return `<span class="lv-lv">Lv${levelLabel(level)}</span><span class="lv-nm">${c.name}${withSpecies ? `<small>${c.species}</small>` : ''}</span><span class="lv-ic">${c.face('normal')}</span>`;
+  }
+
+  private closeLevelLists(): void {
+    this.root.querySelectorAll('.lv-list').forEach((e) => e.remove());
   }
 
   /** 席の子の顔 */
@@ -380,7 +376,7 @@ export class App implements GameUI {
     });
     s.sound = q<HTMLInputElement>('#sound').checked;
     setSoundEnabled(s.sound);
-    this.root.querySelectorAll<HTMLSelectElement>('[data-level]').forEach((el) => {
+    this.root.querySelectorAll<HTMLInputElement>('input[data-level]').forEach((el) => {
       s.levels[Number(el.dataset.level)] = Number(el.value);
     });
     saveSettings(s);
@@ -531,6 +527,8 @@ export class App implements GameUI {
       return;
     }
     if (!(e.target as HTMLElement).closest('.yk-pop')) this.hideYakuPop();
+    // レベルの選択欄の外をタップしたら閉じる
+    if (!(e.target as HTMLElement).closest('.lv-pick')) this.closeLevelLists();
     const el = (e.target as HTMLElement).closest<HTMLElement>('[data-act]');
     if (!el) return;
     const act = el.dataset.act!;
@@ -640,6 +638,28 @@ export class App implements GameUI {
         if (el.classList.contains('help-overlay') && e.target !== el) return;
         document.querySelector('.help-overlay')?.remove();
         return;
+      case 'lv-open': {
+        const i = el.dataset.i!;
+        const pick = this.root.querySelector<HTMLElement>(`.lv-pick[data-pick="${i}"]`)!;
+        const wasOpen = !!pick.querySelector('.lv-list');
+        this.closeLevelLists();
+        if (wasOpen) return;
+        const cur = Number(pick.querySelector<HTMLInputElement>('input[data-level]')!.value);
+        const levels = [...Array.from({ length: 10 }, (_, n) => n + 1), LEVEL_ONI, LEVEL_KAMI];
+        pick.insertAdjacentHTML('beforeend', `<div class="lv-list" role="listbox">${levels.map((l) => `
+          <button type="button" class="lv-item ${l === cur ? 'cur' : ''}" role="option" aria-selected="${l === cur}" data-act="lv-pick" data-i="${i}" data-level-value="${l}">${this.levelItemHtml(l, true)}</button>`).join('')}</div>`);
+        pick.querySelector('.lv-item.cur')?.scrollIntoView({ block: 'nearest' });
+        return;
+      }
+      case 'lv-pick': {
+        const i = el.dataset.i!;
+        const l = Number(el.dataset.levelValue);
+        const pick = this.root.querySelector<HTMLElement>(`.lv-pick[data-pick="${i}"]`)!;
+        pick.querySelector<HTMLInputElement>('input[data-level]')!.value = String(l);
+        pick.querySelector('.lv-btn')!.innerHTML = `${this.levelItemHtml(l)}<span class="lv-caret">▾</span>`;
+        this.closeLevelLists();
+        return;
+      }
       case 'charas':
         this.showCharas();
         return;
