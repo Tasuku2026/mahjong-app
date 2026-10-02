@@ -25,6 +25,8 @@ export interface Rules {
   agariYame: boolean;
   /** 規定の局が終わっても誰も返し点に達していなければ延長（西入・南入） */
   extension: boolean;
+  /** 待った（1手前の自分の番に戻れる） */
+  undo: boolean;
   startScore: number;
   returnScore: number;
 }
@@ -37,6 +39,7 @@ export const DEFAULT_RULES: Rules = {
   tobi: true,
   agariYame: true,
   extension: true,
+  undo: false,
   startScore: 25000,
   returnScore: 30000,
 };

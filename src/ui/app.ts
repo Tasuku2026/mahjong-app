@@ -28,7 +28,7 @@ export interface Settings {
   yakuSide: boolean;
 }
 
-type RuleKey = 'aka' | 'kuitan' | 'kiriage' | 'tobi' | 'agariYame' | 'extension';
+type RuleKey = 'aka' | 'kuitan' | 'kiriage' | 'tobi' | 'agariYame' | 'extension' | 'undo';
 
 const RULE_ROWS: [RuleKey, string][] = [
   ['aka', '赤ドラ'],
@@ -37,6 +37,7 @@ const RULE_ROWS: [RuleKey, string][] = [
   ['tobi', 'トビ終了'],
   ['agariYame', 'アガリやめ'],
   ['extension', '延長戦（西入・南入）'],
+  ['undo', '待った'],
 ];
 
 const SETTINGS_KEY = 'mahjong-settings-v1';
@@ -429,7 +430,7 @@ export class App implements GameUI {
         return;
       case 'undo': {
         const g = this.game;
-        if (!g || this.overlay) return;
+        if (!g || this.overlay || !g.rules.undo) return;
         // 自分が牌を選んでいる最中なら1つ前の自分の番へ、それ以外は直近の自分の番へ
         if (!g.requestRewind(this.pending?.kind === 'turn')) return;
         const p = this.pending;
@@ -730,6 +731,7 @@ export class App implements GameUI {
 
   /** 待ったボタン（戻れないときは薄く表示） */
   private undoButtonHtml(g: Game): string {
+    if (!g.rules.undo) return '';
     const ok = !this.overlay && g.canRewind(this.pending?.kind === 'turn');
     return `<button class="undo-btn" data-act="undo" ${ok ? '' : 'disabled'} aria-label="待った（1手前の自分の番に戻る）">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7L4 12l5 5M4.5 12H15a5 5 0 0 1 0 10h-3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>待った
