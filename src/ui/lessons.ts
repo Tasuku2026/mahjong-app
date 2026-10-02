@@ -74,43 +74,41 @@ export const LESSONS: Lesson[] = [
     ],
   },
   {
-    id: 4, title: 'テンパイと待ち', sub: 'あと1枚で和了の状態',
+    id: 4, title: '鳴いてみよう', sub: 'ポン・チーで人の捨て牌をもらう',
+    steps: [
+      { t: 'talk', who: 'p', text: '牌は、山から引くしかないぴよ？' },
+      { t: 'talk', who: 'h', text: 'じつは、ほかの人が捨てた牌をもらって、組を作ることもできる。これを「鳴く」というんじゃ。鳴き方は2つあるぞ。' },
+      { t: 'talk', who: 'h', tiles: '55z', text: 'ひとつめは「ポン」。同じ牌を2枚持っているとき、だれかが同じ牌を捨てたら、もらって刻子にできる。だれが捨てた牌でもOKじゃ。' },
+      { t: 'talk', who: 'h', tiles: '46m', text: 'ふたつめは「チー」。左どなりの人（上家）が捨てた牌なら、順子も作れる。46萬を持っていれば、5萬をもらってチーじゃ。' },
+      { t: 'choice', text: '上家（左どなり）が5萬を捨てた。手に46萬がある。できるのは？', options: [{ text: 'ポン' }, { text: 'チー' }, { text: 'なにもできない' }], answer: 1, explain: '正解！上家の捨て牌で456萬の順子が作れるから、チーじゃ。' },
+      { t: 'choice', text: '向かいの人（対面）が白を捨てた。手に白が2枚ある。できるのは？', options: [{ text: 'ポン' }, { text: 'チー' }], answer: 0, explain: '正解！同じ牌が3枚になるからポンじゃ。ポンは対面からでもできるぞ。' },
+      { t: 'talk', who: 'p', face: 'happy', text: 'もらって組を作れるなんて、べんりぴよ！' },
+    ],
+  },
+  {
+    id: 5, title: 'テンパイと待ち', sub: 'あと1枚で和了の状態',
     steps: [
       { t: 'talk', who: 'h', text: 'あと1枚で和了できる状態を聴牌（テンパイ）という。その1枚のことを待ちというんじゃ。' },
       { t: 'talk', who: 'h', tiles: '123m 456p 789s 23s 55z', text: 'この手は23索がもう少し。1索か4索がくれば順子になって和了じゃ。待ちが2種類ある、とてもよい形じゃな。' },
       { t: 'choice', text: 'この手の待ちはどれじゃ？', tiles: '123m 456p 789s 46s 55z', options: [{ tiles: '5s' }, { tiles: '4s' }, { tiles: '7s' }], answer: 0, explain: '正解！46索のまん中、5索がくれば456索の順子になるぞ。' },
       { t: 'choice', text: 'では、この手の待ちは？', tiles: '123m 456p 789s 234s 5z', options: [{ tiles: '5z' }, { tiles: '2s' }, { tiles: '5s' }], answer: 0, explain: 'お見事！4つの組はもうできておるから、白がもう1枚くれば雀頭になって和了じゃ。' },
-      { t: 'talk', who: 'p', text: '待ちの牌は、自分で引くしかないぴよ？' },
-      { t: 'talk', who: 'h', text: 'いいや、ほかの人が待ちの牌を捨てたときも、それをもらって和了れるぞ。これを「ロン」という。自分で引いて和了るのが「ツモ」、人の捨て牌で和了るのが「ロン」。和了り方は2つあるんじゃ。' },
+      { t: 'talk', who: 'p', text: '待ちの牌をほかの人が捨てたら、どうなるぴよ？' },
+      { t: 'talk', who: 'h', text: 'それをもらって和了れるぞ。これを「ロン」という。自分で引いて和了るのが「ツモ」、人の捨て牌で和了るのが「ロン」。和了り方は2つあるんじゃ。' },
       { t: 'talk', who: 'p', text: '待ちがわかると、どきどきするぴよ！' },
     ],
   },
   {
-    id: 5, title: '役ってなに？', sub: '和了るために必要な条件',
+    id: 6, title: '役ってなに？', sub: '和了るために必要な条件',
     steps: [
       { t: 'talk', who: 'h', text: 'ここが大事じゃ。和了の形ができても、役が1つ以上ないと和了れないんじゃ。' },
       { t: 'talk', who: 'p', face: 'surprised', text: 'えっ！？形だけじゃだめぴよ！？' },
       { t: 'talk', who: 'h', text: '役はたくさんあるが、最初は3つだけ覚えれば十分じゃ。' },
       { t: 'talk', who: 'h', text: 'ひとつめは立直。鳴かずにテンパイしたら「リーチ」と宣言する。それだけで役になる、いちばん簡単な役じゃ。' },
-      { t: 'talk', who: 'p', face: 'surprised', text: '「鳴かずに」ってなにぴよ？' },
-      { t: 'talk', who: 'h', text: '鳴くというのは、ほかの人が捨てた牌をもらって、自分の組を作ることじゃ。くわしくはレッスン6で教えるぞ。今は「ほかの人の牌をもらわずに、自分で引いた牌だけで手を作る」のが鳴かない、と覚えておけばよい。' },
       { t: 'talk', who: 'h', tiles: '234m 567p 345s 678s 55p', text: 'ふたつめは断幺九。2から8の数字だけで作る役じゃ。1・9・字牌を使わない。' },
       { t: 'talk', who: 'h', tiles: '555z 123m 456p 789s 11p', text: 'みっつめは役牌。白・發・中などを3枚そろえる役じゃ。' },
       { t: 'choice', text: 'この手を、人の捨て牌で和了ろうとしておる（リーチはしていない）。和了れるかな？', tiles: '234m 567p 345s 678s 55p', options: [{ text: '和了れる（断幺九がある）' }, { text: '和了れない' }], answer: 0, explain: '正解！2〜8だけでできておるから、断幺九の役がついて和了れるぞ。' },
       { t: 'choice', text: 'では、この手は？（リーチはしていない・人の捨て牌で和了る）', tiles: '123m 456p 789s 111s 99p', options: [{ text: '和了れる' }, { text: '和了れない（役がない）' }], answer: 1, explain: 'そのとおり！形はできておるが、1や9があるから断幺九ではないし、役牌もない。リーチをしておけば和了れたんじゃ。' },
       { t: 'talk', who: 'h', text: 'どの役を目指せばいいか迷ったら、対局中の「役ナビ」を見るとよいぞ。今の手で狙いやすい役を教えてくれる。' },
-    ],
-  },
-  {
-    id: 6, title: 'ポン・チー・ロン・ツモ', sub: '人の捨て牌を使うとき',
-    steps: [
-      { t: 'talk', who: 'h', text: '人の捨て牌をもらって、自分の組を作ることを「鳴く」という。鳴き方は2つじゃ。' },
-      { t: 'talk', who: 'h', tiles: '55z', text: 'ポンは、同じ牌を2枚持っているとき、だれかが3枚目を捨てたらもらえる。だれの捨て牌でもOKじゃ。' },
-      { t: 'talk', who: 'h', tiles: '46m', text: 'チーは、左どなりの人（上家）の捨て牌で順子を作る。46萬を持っていたら、上家の5萬でチーできるぞ。' },
-      { t: 'talk', who: 'h', text: '鳴くと手が早く進むが、リーチができなくなる。役がなくなることもあるから注意じゃ（断幺九や役牌は鳴いてもOK）。' },
-      { t: 'talk', who: 'h', text: 'レッスン4のおさらいじゃ。人の捨て牌で和了るのがロン、自分で引いて和了るのがツモじゃ。' },
-      { t: 'choice', text: '上家（左どなり）が5萬を捨てた。手に46萬がある。できるのは？', options: [{ text: 'ポン' }, { text: 'チー' }, { text: 'なにもできない' }], answer: 1, explain: '正解！上家の捨て牌で456萬の順子が作れるから、チーじゃ。' },
-      { t: 'choice', text: '向かいの人（対面）が白を捨てた。手に白が2枚ある。できるのは？', options: [{ text: 'ポン' }, { text: 'チー' }], answer: 0, explain: '正解！同じ牌が3枚になるからポンじゃ。ポンは対面からでもできるぞ。' },
     ],
   },
   {
@@ -160,7 +158,10 @@ export interface LessonProgress {
 export function loadProgress(): LessonProgress {
   try {
     const p = JSON.parse(localStorage.getItem(KEY) ?? '{}');
-    return { done: p.done ?? [], graduated: !!p.graduated, introShown: !!p.introShown };
+    let done: number[] = p.done ?? [];
+    // 並べ替え前の番号（旧4テンパイ・旧5役・旧6ポンチー）を今の番号に
+    if (p.v !== 2) done = done.map((id) => ({ 4: 5, 5: 6, 6: 4 } as Record<number, number>)[id] ?? id);
+    return { done, graduated: !!p.graduated, introShown: !!p.introShown };
   } catch {
     return { done: [], graduated: false, introShown: false };
   }
@@ -168,7 +169,7 @@ export function loadProgress(): LessonProgress {
 
 export function saveProgress(p: LessonProgress): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify(p));
+    localStorage.setItem(KEY, JSON.stringify({ ...p, v: 2 }));
   } catch {
     /* 保存できなくても進められる */
   }
