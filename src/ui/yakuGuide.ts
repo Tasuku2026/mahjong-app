@@ -62,7 +62,7 @@ const YAKU: YakuDef[] = [
   {
     name: '立直', han: 1, openHan: null,
     desc: '鳴かずにテンパイ（あと1枚で和了）したときに「リーチ」と宣言する。どんな手でも役になる、いちばん基本の役。',
-    example: '123m456p789s234s55p',
+    example: '123m 456p 789s 234s 55p',
     fit: (c) => needMenzen(c) ?? (c.shanten <= 0
       ? { score: 1, note: 'テンパイしています。リーチできます！' }
       : { score: clamp(0.85 - c.shanten * 0.12), note: '鳴かずに進めて、テンパイしたらリーチ' }),
@@ -70,13 +70,13 @@ const YAKU: YakuDef[] = [
   {
     name: '門前清自摸和', han: 1, openHan: null,
     desc: '鳴かずに、自分で引いた牌（ツモ）で和了する。',
-    example: '123m456p789s234s55p',
+    example: '123m 456p 789s 234s 55p',
     fit: (c) => needMenzen(c) ?? { score: 0.5, note: '鳴かずにツモで和了すればつきます' },
   },
   {
     name: '断幺九', han: 1, openHan: 1,
     desc: '2〜8の数牌だけで作る。1・9・字牌（東南西北白發中）を使わない。',
-    example: '234m567p345s678s55p',
+    example: '234m 567p 345s 678s 55p',
     fit: (c) => {
       if (!c.menzen && !c.g.rules.kuitan) return { score: 0, note: '喰いタンなしのルールなので、鳴くとつきません' };
       if (c.g.players[0].melds.some((m) => m.tiles.some((t) => isYaochu(kindOf(t))))) return { score: 0, note: '1・9・字牌を鳴いているので、この局ではつきません' };
@@ -89,7 +89,7 @@ const YAKU: YakuDef[] = [
   {
     name: '役牌', han: 1, openHan: 1,
     desc: '白・發・中、場風（東場なら東）、自風（自分の席の風）を3枚そろえる。ポンしてもOK。',
-    example: '555z123m456p789s11p',
+    example: '555z 123m 456p 789s 11p',
     fit: (c) => {
       let best: Fit = { score: 0.05, note: '役牌（白・發・中・場風・自風）を持っていません' };
       for (let k = 27; k < 34; k++) {
@@ -107,7 +107,7 @@ const YAKU: YakuDef[] = [
   {
     name: '平和', han: 1, openHan: null,
     desc: '鳴かずに、順子（123のような数字の並び）4組と、役牌以外の雀頭（2枚組）で作り、両面待ち（34で2と5を待つような形）で和了する。',
-    example: '123m456p345s789s55p',
+    example: '123m 456p 345s 789s 55p',
     fit: (c) => {
       const m = needMenzen(c);
       if (m) return m;
@@ -119,7 +119,7 @@ const YAKU: YakuDef[] = [
   {
     name: '一盃口', han: 1, openHan: null,
     desc: '鳴かずに、まったく同じ順子を2組作る（例：223344）。',
-    example: '112233m456p789s55p',
+    example: '123m 123m 456p 789s 55p',
     fit: (c) => {
       const m = needMenzen(c);
       if (m) return m;
@@ -135,7 +135,7 @@ const YAKU: YakuDef[] = [
   {
     name: '七対子', han: 2, openHan: null,
     desc: '鳴かずに、対子（同じ牌2枚）を7組そろえる。特別な形の役。',
-    example: '1133m5577p2288s66z',
+    example: '11m 33m 55p 77p 22s 88s 66z',
     fit: (c) => {
       const m = needMenzen(c);
       if (m) return m;
@@ -147,7 +147,7 @@ const YAKU: YakuDef[] = [
   {
     name: '三色同順', han: 2, openHan: 1,
     desc: '萬子・筒子・索子で、同じ数字の順子を作る（例：345萬・345筒・345索）。',
-    example: '345m345p345s789m11z',
+    example: '345m 345p 345s 789m 11z',
     fit: (c) => {
       let best = 0;
       let bestN = 0;
@@ -164,7 +164,7 @@ const YAKU: YakuDef[] = [
   {
     name: '一気通貫', han: 2, openHan: 1,
     desc: '同じ色で 123・456・789 の順子をそろえる（1から9までの一本道）。',
-    example: '123456789m456p11z',
+    example: '123m 456m 789m 456p 11z',
     fit: (c) => {
       let best = 0;
       let bestS = 0;
@@ -180,7 +180,7 @@ const YAKU: YakuDef[] = [
   {
     name: '混全帯幺九', han: 2, openHan: 1,
     desc: 'すべての組（順子・刻子・雀頭）に、1・9・字牌のどれかを入れる（例：123、789、東東東）。',
-    example: '123m789p123s111z99m',
+    example: '123m 789p 123s 111z 99m',
     fit: (c) => {
       const edge = c.all.filter((k) => isHonor(k) || k % 9 <= 2 || k % 9 >= 6).length;
       const r = edge / c.all.length;
@@ -190,7 +190,7 @@ const YAKU: YakuDef[] = [
   {
     name: '対々和', han: 2, openHan: 2,
     desc: '刻子（同じ牌3枚）を4組と、雀頭（2枚）で作る。ポンしてもOK。',
-    example: '111m555p999s222z33z',
+    example: '111m 555p 999s 222z 33z',
     fit: (c) => {
       const no = needNoChi(c);
       if (no) return no;
@@ -202,7 +202,7 @@ const YAKU: YakuDef[] = [
   {
     name: '三暗刻', han: 2, openHan: 2,
     desc: '鳴かずに自分で集めた刻子（暗刻）を3組作る。',
-    example: '111m555p999s234s66p',
+    example: '111m 555p 999s 234s 66p',
     fit: (c) => {
       const t3 = toCounts(c.g.players[0].hand).filter((x) => x >= 3).length;
       const t2 = toCounts(c.g.players[0].hand).filter((x) => x === 2).length;
@@ -212,7 +212,7 @@ const YAKU: YakuDef[] = [
   {
     name: '小三元', han: 2, openHan: 2,
     desc: '白・發・中のうち2種類を刻子（3枚）、残り1種類を雀頭（2枚）にする。役牌2つも一緒につくので高い。',
-    example: '555z666z77z123m456p',
+    example: '555z 666z 123m 456p 77z',
     fit: (c) => {
       const d = [31, 32, 33].reduce((a, k) => a + Math.min(c.counts[k], 3), 0);
       return { score: clamp((d - 3) / 5), note: `白・發・中が合わせて${d}枚（8枚必要）` };
@@ -221,7 +221,7 @@ const YAKU: YakuDef[] = [
   {
     name: '混老頭', han: 2, openHan: 2,
     desc: '1・9・字牌だけで作る（2〜8を使わない）。',
-    example: '111m999p111s222z99s',
+    example: '111m 999p 111s 222z 99s',
     fit: (c) => {
       const n = c.all.filter((k) => !isYaochu(k)).length;
       return { score: clamp(1 - n * 0.15), note: n ? `2〜8の牌が あと${n}枚` : '1・9・字牌だけです！' };
@@ -230,7 +230,7 @@ const YAKU: YakuDef[] = [
   {
     name: '三色同刻', han: 2, openHan: 2,
     desc: '萬子・筒子・索子で、同じ数字の刻子を作る（例：222萬・222筒・222索）。',
-    example: '222m222p222s456m99s',
+    example: '222m 222p 222s 456m 99s',
     fit: (c) => {
       let best = 0;
       for (let n = 0; n < 9; n++) best = Math.max(best, [0, 1, 2].reduce((a, s) => a + Math.min(c.counts[s * 9 + n], 3), 0));
@@ -248,7 +248,7 @@ const YAKU: YakuDef[] = [
   {
     name: '二盃口', han: 3, openHan: null,
     desc: '鳴かずに、一盃口（同じ順子2組）を2つ作る（例：112233萬・556677筒）。',
-    example: '112233m556677p11s',
+    example: '123m 123m 567p 567p 11s',
     fit: (c) => {
       const m = needMenzen(c);
       if (m) return m;
@@ -259,7 +259,7 @@ const YAKU: YakuDef[] = [
   {
     name: '純全帯幺九', han: 3, openHan: 2,
     desc: 'すべての組に1か9を入れる（字牌は使わない）。混全帯幺九の上位版。',
-    example: '123m789p123s999s11m',
+    example: '123m 789p 123s 999s 11m',
     fit: (c) => {
       if (c.all.some(isHonor)) return { score: 0.05, note: '字牌があるとつきません（字牌を切ろう）' };
       const edge = c.all.filter((k) => k % 9 <= 2 || k % 9 >= 6).length;
@@ -269,7 +269,7 @@ const YAKU: YakuDef[] = [
   {
     name: '混一色', han: 3, openHan: 2,
     desc: '1種類の数牌（萬子・筒子・索子のどれか）と字牌だけで作る。',
-    example: '123456m789m111z22z',
+    example: '123m 456m 789m 111z 22z',
     fit: (c) => {
       const st = suitStats(c);
       return st.off === 0
@@ -280,7 +280,7 @@ const YAKU: YakuDef[] = [
   {
     name: '清一色', han: 6, openHan: 5,
     desc: '1種類の数牌だけで作る（字牌も使わない）。とても高い役。',
-    example: '12323445678999m',
+    example: '123m 234m 456m 789m 99m',
     fit: (c) => {
       const st = suitStats(c);
       const other = st.off + st.honors;
@@ -309,7 +309,7 @@ const YAKU: YakuDef[] = [
   {
     name: '四暗刻', han: 13, openHan: null, yakuman: true,
     desc: '鳴かずに刻子（同じ牌3枚）を4組作る。',
-    example: '111m555p999s222z33z',
+    example: '111m 555p 999s 222z 33z',
     fit: (c) => {
       const m = needMenzen(c);
       if (m) return m;
@@ -322,7 +322,7 @@ const YAKU: YakuDef[] = [
   {
     name: '大三元', han: 13, openHan: 13, yakuman: true,
     desc: '白・發・中をすべて刻子（3枚ずつ）にする。',
-    example: '555z666z777z123m11p',
+    example: '555z 666z 777z 123m 11p',
     fit: (c) => {
       const d = [31, 32, 33].reduce((a, k) => a + Math.min(c.counts[k], 3), 0);
       return { score: clamp((d - 4) / 5), note: `白・發・中が合わせて${d}枚（9枚必要）` };
@@ -331,7 +331,7 @@ const YAKU: YakuDef[] = [
   {
     name: '小四喜', han: 13, openHan: 13, yakuman: true,
     desc: '東南西北のうち3種類を刻子、1種類を雀頭にする。',
-    example: '111z222z333z44z123m',
+    example: '111z 222z 333z 123m 44z',
     fit: (c) => {
       const w = [27, 28, 29, 30].reduce((a, k) => a + Math.min(c.counts[k], 3), 0);
       return { score: clamp((w - 5) / 6), note: `東南西北が合わせて${w}枚（11枚必要）` };
@@ -340,7 +340,7 @@ const YAKU: YakuDef[] = [
   {
     name: '大四喜', han: 13, openHan: 13, yakuman: true,
     desc: '東南西北をすべて刻子にする。',
-    example: '111z222z333z444z11m',
+    example: '111z 222z 333z 444z 11m',
     fit: (c) => {
       const w = [27, 28, 29, 30].reduce((a, k) => a + Math.min(c.counts[k], 3), 0);
       return { score: clamp((w - 6) / 7), note: `東南西北が合わせて${w}枚（12枚必要）` };
@@ -349,7 +349,7 @@ const YAKU: YakuDef[] = [
   {
     name: '字一色', han: 13, openHan: 13, yakuman: true,
     desc: '字牌（東南西北白發中）だけで作る。',
-    example: '111z222z333z555z66z',
+    example: '111z 222z 333z 555z 66z',
     fit: (c) => {
       const n = c.all.filter((k) => !isHonor(k)).length;
       return { score: clamp(1 - n * 0.12), note: `数牌が あと${n}枚` };
@@ -358,7 +358,7 @@ const YAKU: YakuDef[] = [
   {
     name: '緑一色', han: 13, openHan: 13, yakuman: true,
     desc: '緑色だけの牌（2・3・4・6・8索と發）で作る。',
-    example: '223344666888s66z',
+    example: '234s 234s 666s 888s 66z',
     fit: (c) => {
       const green = new Set([19, 20, 21, 23, 25, 32]);
       const n = c.all.filter((k) => !green.has(k)).length;
@@ -368,7 +368,7 @@ const YAKU: YakuDef[] = [
   {
     name: '清老頭', han: 13, openHan: 13, yakuman: true,
     desc: '1と9の数牌だけで作る（字牌も使わない）。',
-    example: '111m999m111p999p11s',
+    example: '111m 999m 111p 999p 11s',
     fit: (c) => {
       const n = c.all.filter((k) => !isTerminal(k)).length;
       return { score: clamp(1 - n * 0.12), note: `1・9以外の牌が あと${n}枚` };
@@ -377,7 +377,7 @@ const YAKU: YakuDef[] = [
   {
     name: '九蓮宝燈', han: 13, openHan: null, yakuman: true,
     desc: '鳴かずに、1種類の数牌で「1112345678999」＋どれか1枚の形を作る。',
-    example: '11123456789999m',
+    example: '123m 456m 789m 999m 11m',
     fit: (c) => {
       const m = needMenzen(c);
       if (m) return m;
@@ -609,13 +609,20 @@ function statHtml(e: Est, luck: boolean): string {
   return `<span class="yk-stat">成立する確率 <b>${pct}</b>・最短あと<b>${e.need}</b>枚</span>`;
 }
 
+/** 役の見本。空白で区切った組ごとに、少しすき間を空けて並べる（3・3・3・3・2） */
+function exampleTiles(ex: string): string {
+  return ex.trim().split(/\s+/)
+    .map((g) => `<span class="yk-grp">${parseTiles(g).sort((a, b) => a - b).map((t) => tileHtml(t)).join('')}</span>`)
+    .join('');
+}
+
 interface Row { y: YakuDef; e: Est; note: string }
 
 function itemHtml(r: Row, open: Set<string>, kuitan: boolean, aim: string | null = null): string {
   const { y, e } = r;
   const m = mark(e, !!y.luck);
   const example = y.example
-    ? `<div class="yk-example">${parseTiles(y.example).sort((a, b) => a - b).map((t) => tileHtml(t)).join('')}</div>`
+    ? `<div class="yk-example">${exampleTiles(y.example)}</div>`
     : '';
   const showNote = r.note && !y.luck && Number.isFinite(e.need) && e.need > 0;
   return `
@@ -699,7 +706,7 @@ export function yakuPopHtml(name: string): string {
   const y = YAKU.find((x) => x.name === name);
   if (!y) return '';
   const tiles = y.example
-    ? `<div class="yk-pop-tiles">${parseTiles(y.example).sort((a, b) => a - b).map((t) => tileHtml(t)).join('')}</div>`
+    ? `<div class="yk-pop-tiles">${exampleTiles(y.example)}</div>`
     : `<p class="yk-pop-desc">${furigana(y.desc)}</p>`;
   return `<div class="yk-pop-title">${yakuRuby(y.name)}<span class="muted">の完成形の例</span></div>${tiles}`;
 }

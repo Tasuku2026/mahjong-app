@@ -1126,8 +1126,11 @@ export class App implements GameUI {
     const danger = a.danger !== 'off' ? handDanger(g, a.danger) : null;
     const rec = pend ? this.hintTile(g) : null;
     const aimTile = pend && !this.riichiMode ? this.aimTile(g) : null;
+    // ドラ（表示牌の次の牌）と赤ドラは金色に光らせる
+    const doraKinds = new Set(g.doraIndicators.map((t) => doraFromIndicator(kindOf(t))));
     const one = (t: Tile, extra: string[] = []) => {
       const cls = [...extra];
+      if (doraKinds.has(kindOf(t)) || g.isRed(t)) cls.push('is-dora');
       if (pend) cls.push(allowed.includes(t) ? 'can' : 'dim');
       if (this.selected === t) cls.push('selected');
       const badges: string[] = [];

@@ -321,6 +321,15 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
 .my-hand .tile.can { cursor: pointer; }
 .my-hand .tile.dim { filter: brightness(.6); }
 .my-hand .tile.selected { transform: translateY(-30%); }
+/* ドラは金色のふちで光らせる */
+.tile.is-dora::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 0 2px #f2c94c, 0 0 7px 2px rgba(242, 201, 76, .7);
+  pointer-events: none;
+}
 .my-hand .tile.drawn { margin-left: calc(var(--w) * 0.35); }
 
 /* ---------------- ダイアログ ---------------- */
@@ -870,7 +879,7 @@ button.danger-solid { background: #b8433c; border-color: #b8433c; }
   box-shadow: 0 8px 24px rgba(0, 0, 0, .6);
   pointer-events: none;
   animation: dialog-in .15s ease-out;
-  --w: min(calc((92vw - 24px) / 14.5), 26px);
+  --w: min(calc((92vw - 24px) / 15.8), 26px);
 }
 .yk-pop-title { font-weight: 800; margin-bottom: 6px; font-size: .9rem; }
 .yk-pop-title .muted { font-weight: 400; font-size: .75rem; margin-left: 6px; }
@@ -1289,3 +1298,7 @@ button.danger-solid { background: #b8433c; border-color: #b8433c; }
 /* できた組: 組の中はくっつけて、組どうしは少しあける。1段に収める */
 .ls-groups { flex-wrap: nowrap; gap: 4px; --w: min(calc((100vw - 64px - 16px) / 14.4), 30px); }
 .ls-group { padding: 2px; gap: 0; }
+
+/* 役ナビの見本: 組ごとに少しすき間（3・3・3・3・2） */
+.yk-grp { display: inline-flex; gap: 1px; flex: none; }
+.yk-example, .yk-pop-tiles { column-gap: calc(var(--w, 24px) * .3); row-gap: 4px; }
