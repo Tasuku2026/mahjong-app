@@ -1043,3 +1043,74 @@ button.danger-solid { background: #b8433c; border-color: #b8433c; }
   letter-spacing: .02em;
   white-space: nowrap;
 }
+
+/* ---------------- キャラクター ---------------- */
+.chara-svg { display: block; width: 100%; height: 100%; }
+/* 卓の中央の箱の角（下家=右下・対面=右上・上家=左上） */
+.avatar {
+  position: absolute;
+  width: 8.4%;
+  height: 8.4%;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .12);
+  box-shadow: 0 0 0 1.5px rgba(255, 255, 255, .25);
+  z-index: 5;
+  pointer-events: none;
+}
+.avatar.turn { box-shadow: 0 0 0 2px var(--accent), 0 0 10px rgba(242, 179, 61, .6); }
+.av-s1 { left: 58.8%; top: 58.8%; }
+.av-s2 { left: 58.8%; top: 32.8%; }
+.av-s3 { left: 32.8%; top: 32.8%; }
+.speech {
+  position: absolute;
+  max-width: 40%;
+  padding: 4px 8px;
+  border-radius: 10px;
+  background: #fffdf6;
+  color: #3b2f2a;
+  font-size: max(10px, calc(var(--S) * 0.029));
+  line-height: 1.45;
+  font-weight: 700;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, .45);
+  z-index: 9;
+  pointer-events: none;
+  animation: speech-in .2s ease-out;
+}
+.speech ruby rt { color: #8a7a6a; }
+@keyframes speech-in { from { transform: scale(.7); opacity: 0; } to { transform: none; opacity: 1; } }
+.sp-s1 { left: 56%; top: 68.5%; }
+.sp-s2 { left: 56%; bottom: 68.5%; }
+.sp-s3 { right: 68.5%; top: 26%; }
+
+/* トップ画面: レベル欄の下の顔と名前 */
+.lv-chara { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+.lv-face { width: 30px; height: 30px; flex: none; }
+.lv-name { font-size: .82rem; font-weight: 700; line-height: 1.2; }
+.lv-name small { display: block; color: var(--muted); font-weight: 400; font-size: .68rem; }
+
+/* 結果画面 */
+.res-face { display: inline-block; width: 30px; height: 30px; vertical-align: middle; margin-right: 6px; }
+.row-face { display: inline-block; width: 22px; height: 22px; vertical-align: middle; margin-right: 5px; }
+.chara-comment {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  padding: 6px 10px;
+  background: var(--panel-2);
+  border-radius: 10px;
+  font-size: .85rem;
+  line-height: 1.6;
+}
+.chara-comment > .chara-svg { width: 38px; height: 38px; flex: none; }
+
+/* キャラ図鑑 */
+.chara-card .cc-faces { display: flex; gap: 6px; }
+.chara-card .cc-faces span { width: 56px; height: 56px; }
+.chara-card .cc-head { display: flex; align-items: baseline; gap: 8px; margin-top: 6px; }
+.chara-card .cc-head b { font-size: 1.15rem; }
+.chara-card .cc-catch { margin: 6px 0 2px; color: var(--accent); font-weight: 700; }
+.chara-card .cc-profile { margin: 4px 0; line-height: 1.7; font-size: .88rem; }
+.chara-card .cc-vs { color: var(--muted); font-size: .8rem; }
+.chara-card .cc-vs b { color: var(--text); }
+@media (prefers-reduced-motion: reduce) { .speech { animation: none; } }

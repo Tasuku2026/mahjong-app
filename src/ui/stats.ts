@@ -13,6 +13,8 @@ export interface GameRecord {
   riichi: number;
   calls: number;
   winPoints: number;
+  /** 各席の最終順位（席0 = あなた）。古い記録にはない */
+  ranks?: number[];
 }
 
 export interface RoundTally {

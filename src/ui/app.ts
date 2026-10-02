@@ -7,6 +7,7 @@ import { CpuAgent, LEVEL_KAMI, LEVEL_ONI, levelLabel } from '../ai/cpu';
 import { tileHtml, meldHtml } from './tileView';
 import { helpButton, helpDialogHtml } from './help';
 import { T, furigana, kindRuby, roundRuby, yakuRuby } from './terms';
+import { CHARAS, Chara, Expr, Talk, charaFor, pickLine } from './characters';
 import { aimDiscard, yakuGuideHtml, yakuNeed, yakuPopHtml } from './yakuGuide';
 import { AssistSettings, DEFAULT_ASSIST, DangerMode, Advice, adviseCall, adviseTurn, discardInfo, handDanger, remainCounts } from './assist';
 import { outlook, Outlook } from '../ai/value';
@@ -103,6 +104,10 @@ export class App implements GameUI {
   private tally: RoundTally = emptyTally();
   /** 役ナビウインドウを開いているか（画面が狭いときのみ。対局は止めない） */
   private yakuOpen = false;
+  /** キャラクターの吹き出しと表情（席ごと） */
+  private speech = new Map<number, { text: string; key: number }>();
+  private faces = new Map<number, { expr: Expr; key: number }>();
+  private talkKey = 0;
   /** 「この役を狙う」で選んだ役（局が終わると解除） */
   private aimYaku: string | null = null;
   private aimCache: { pending: Pending; aim: string; tile: Tile | null } | null = null;
@@ -140,6 +145,13 @@ export class App implements GameUI {
       const to = (e as MouseEvent).relatedTarget as HTMLElement | null;
       if (from && !to?.closest('[data-yaku-pop]')) this.hideYakuPop();
     });
+    // レベルを選び直したら、その子の顔と名前に変える
+    document.addEventListener('change', (e) => {
+      const sel = (e.target as HTMLElement).closest<HTMLSelectElement>('select[data-level]');
+      if (!sel) return;
+      const box = this.root.querySelector(`[data-chara-for="${sel.dataset.level}"]`);
+      if (box) box.innerHTML = this.charaMiniHtml(Number(sel.value));
+    });
     // 画面の幅で、役ナビを卓の横に出すかが変わる
     window.addEventListener('resize', () => this.render());
   }
@@ -158,6 +170,7 @@ export class App implements GameUI {
           <option value="${LEVEL_ONI}" ${s.levels[i] === LEVEL_ONI ? 'selected' : ''}>レベル鬼</option>
           <option value="${LEVEL_KAMI}" ${s.levels[i] === LEVEL_KAMI ? 'selected' : ''}>レベル神</option>
         </select>
+        <div class="lv-chara" data-chara-for="${i}">${this.charaMiniHtml(s.levels[i])}</div>
       </label>`;
     this.root.innerHTML = `
       <div class="start">
@@ -196,7 +209,115 @@ export class App implements GameUI {
         </section>
         <button class="primary big" data-act="start">対局開始</button>
         <button class="big secondary" data-act="stats">戦績を見る</button>
+        <button class="big secondary" data-act="charas">キャラ図鑑</button>
         ${analyticsEnabled() ? '<p class="privacy">利用状況の把握のため、アクセス解析（GoatCounter）を使用しています。Cookieや個人を特定する情報は使用しません。</p>' : ''}
+      </div>`;
+  }
+
+  // ------------------------------------------------------------------
+  // キャラクター
+  // ------------------------------------------------------------------
+
+  /** トップ画面のレベル欄の下: 顔と名前 */
+  private charaMiniHtml(level: number): string {
+    const c = charaFor(level);
+    return `<span class="lv-face">${c.face('normal')}</span><span class="lv-name">${c.name}<small>${c.species}</small></span>`;
+  }
+
+  /** 席の子の顔 */
+  private faceHtml(g: Game, seat: number, expr: Expr, cls: string): string {
+    return `<span class="${cls}">${charaFor(g.players[seat].level).face(expr)}</span>`;
+  }
+
+  /** CPUにしゃべらせる（吹き出しは少しして消える） */
+  private speak(seat: number, talk: Talk, expr?: Expr): void {
+    const g = this.game;
+    if (!g || seat === 0 || g.players[seat].isHuman) return;
+    const key = ++this.talkKey;
+    this.speech.set(seat, { text: pickLine(charaFor(g.players[seat].level), talk), key });
+    if (expr) this.faces.set(seat, { expr, key });
+    this.render();
+    setTimeout(() => {
+      let changed = false;
+      if (this.speech.get(seat)?.key === key) { this.speech.delete(seat); changed = true; }
+      if (this.faces.get(seat)?.key === key) { this.faces.delete(seat); changed = true; }
+      if (changed && this.game === g) this.render();
+    }, 2800);
+  }
+
+  /** 卓の中央の箱の角に顔、そばに吹き出し */
+  private avatarHtml(g: Game, seat: number): string {
+    const c = charaFor(g.players[seat].level);
+    const expr = this.faces.get(seat)?.expr ?? 'normal';
+    const sp = this.speech.get(seat);
+    return `<div class="avatar av-s${seat} ${g.current === seat ? 'turn' : ''}" title="${c.name}（${c.species}）">${c.face(expr)}</div>
+      ${sp ? `<div class="speech sp-s${seat}" data-k="${sp.key}">${furigana(sp.text)}</div>` : ''}`;
+  }
+
+  /** 局の結果に、キャラのひとこと */
+  private resultCommentHtml(g: Game, r: RoundResult): string {
+    const line = (seat: number, talk: Talk, expr: Expr) => {
+      const c = charaFor(g.players[seat].level);
+      return `<div class="chara-comment">${c.face(expr)}<div><b>${c.name}</b>「${furigana(pickLine(c, talk))}」</div></div>`;
+    };
+    if (r.type === 'win') {
+      const w = r.wins[0];
+      if (w.seat === 0) {
+        // あなたの和了: 振り込んだ子はくやしがり、ツモならだれかがほめる
+        const cpu = w.from !== null && w.from !== 0 ? w.from : 1 + Math.floor(Math.random() * 3);
+        return w.from !== null && w.from !== 0 ? line(cpu, 'dealIn', 'sad') : line(cpu, 'praise', 'surprised');
+      }
+      // CPUの和了: 振り込んだのがCPUならその子、そうでなければ和了した子
+      if (w.from !== null && w.from !== 0) return line(w.from, 'dealIn', 'sad');
+      return line(w.seat, w.from === null ? 'tsumo' : 'ron', 'happy');
+    }
+    return line(1 + Math.floor(Math.random() * 3), 'draw', 'normal');
+  }
+
+  /** 対局の最後に、1位と4位の子のひとこと */
+  private finalCommentsHtml(g: Game, st: FinalStanding[]): string {
+    const out: string[] = [];
+    for (const x of st) {
+      if (x.seat === 0 || (x.rank !== 1 && x.rank !== 4)) continue;
+      const c = charaFor(g.players[x.seat].level);
+      const talk: Talk = x.rank === 1 ? 'first' : 'last';
+      out.push(`<div class="chara-comment">${c.face(x.rank === 1 ? 'happy' : 'sad')}<div><b>${c.name}</b>「${furigana(pickLine(c, talk))}」</div></div>`);
+    }
+    return out.join('');
+  }
+
+  /** キャラ図鑑 */
+  private showCharas(): void {
+    const records = loadRecords();
+    const vs = (c: Chara) => {
+      let games = 0;
+      let wins = 0;
+      for (const r of records) {
+        r.levels.forEach((l, i) => {
+          if (l !== c.level) return;
+          games++;
+          if (r.ranks && r.rank < r.ranks[i + 1]) wins++;
+        });
+      }
+      return { games, wins };
+    };
+    const cards = CHARAS.map((c) => {
+      const v = vs(c);
+      return `
+        <section class="card chara-card">
+          <div class="cc-faces">${(['normal', 'happy', 'sad', 'surprised'] as Expr[]).map((e) => `<span>${c.face(e)}</span>`).join('')}</div>
+          <div class="cc-head"><b>${c.name}</b><span class="muted">${c.species}・レベル${levelLabel(c.level)}</span></div>
+          <p class="cc-catch">「${furigana(c.catchphrase)}」</p>
+          <p class="cc-profile">${furigana(c.profile)}</p>
+          <div class="cc-vs">${v.games ? `いっしょに打った回数 <b>${v.games}</b>回・この子より上の順位 <b>${v.wins}</b>回` : 'まだ対戦していません'}</div>
+        </section>`;
+    }).join('');
+    this.root.innerHTML = `
+      <div class="start">
+        <h1>キャラ図鑑</h1>
+        <p class="sub">CPUのレベルごとに、ちがう子が登場します</p>
+        ${cards}
+        <button class="primary big" data-act="title">戻る</button>
       </div>`;
   }
 
@@ -280,16 +401,20 @@ export class App implements GameUI {
         rewound();
         this.update();
       },
-      delay: (ms) => (live() ? this.delay(ms).then(() => (live() ? rewound() : never<void>())) : never()),
+      delay: (ms) => {
+        if (!live()) return never();
+        // CPUの番に、ときどきつぶやく
+        const cur = gameRef?.current ?? 0;
+        if (cur !== 0 && !this.speech.has(cur) && Math.random() < 0.07) this.speak(cur, 'idle');
+        return this.delay(ms).then(() => (live() ? rewound() : never<void>()));
+      },
       announce: (seat, text) => (live() ? (rewound(), this.announce(seat, text).then(rewound)) : never()),
       showRoundResult: (game, r) => (live() ? this.showRoundResult(game, r) : never()),
     };
     const human = new HumanAgent(this, live);
     const players = [
       { name: 'あなた', isHuman: true, level: 0 },
-      { name: `下家 Lv${levelLabel(s.levels[0])}`, isHuman: false, level: s.levels[0] },
-      { name: `対面 Lv${levelLabel(s.levels[1])}`, isHuman: false, level: s.levels[1] },
-      { name: `上家 Lv${levelLabel(s.levels[2])}`, isHuman: false, level: s.levels[2] },
+      ...s.levels.map((l) => ({ name: charaFor(l).name, isHuman: false, level: l })),
     ];
     const agents: Agent[] = [human, new CpuAgent(s.levels[0]), new CpuAgent(s.levels[1]), new CpuAgent(s.levels[2])];
     const g = new Game({ ...s.rules }, players, agents, ui);
@@ -298,6 +423,10 @@ export class App implements GameUI {
     this.tally = emptyTally();
     this.animatedDiscard = '';
     trackEvent('game-start', '対局開始');
+    this.speech.clear();
+    this.faces.clear();
+    // あいさつ（少しずつずらして）
+    [1, 2, 3].forEach((seat, i) => setTimeout(() => { if (live()) this.speak(seat, 'start', 'happy'); }, 400 + i * 900));
     trackEvent(`length-${s.rules.gameLength}`, s.rules.gameLength === 'tonpu' ? '東風戦' : '半荘戦');
     for (const l of s.levels) trackEvent(`cpu-level-${levelLabel(l)}`, `CPUレベル${levelLabel(l)}`);
     const standings = await g.run();
@@ -318,6 +447,15 @@ export class App implements GameUI {
   }
 
   async announce(seat: number, text: string): Promise<void> {
+    const talk: Talk | null = text === 'リーチ' ? 'riichi' : text === 'ツモ' ? 'tsumo' : text === 'ロン' ? 'ron'
+      : ['ポン', 'チー', 'カン'].includes(text) ? 'call' : null;
+    if (talk) this.speak(seat, talk, talk === 'riichi' || talk === 'call' ? 'normal' : 'happy');
+    // だれかのリーチに、ほかのCPUが反応する
+    if (text === 'リーチ' && Math.random() < 0.7) {
+      const others = [1, 2, 3].filter((s) => s !== seat);
+      const o = others[Math.floor(Math.random() * others.length)];
+      setTimeout(() => this.speak(o, 'reactRiichi', 'surprised'), 700);
+    }
     if (text === 'ロン' || text === 'ツモ') sfx.win();
     else if (text === 'リーチ') sfx.riichi();
     else sfx.call();
@@ -502,6 +640,9 @@ export class App implements GameUI {
         if (el.classList.contains('help-overlay') && e.target !== el) return;
         document.querySelector('.help-overlay')?.remove();
         return;
+      case 'charas':
+        this.showCharas();
+        return;
       case 'stats':
         this.showStats();
         return;
@@ -607,6 +748,7 @@ export class App implements GameUI {
         <div class="board-wrap"><div class="board">
           ${this.centerHtml(g)}
           ${[0, 1, 2, 3].map((s) => this.seatHtml(g, s)).join('')}
+          ${[1, 2, 3].map((seat) => this.avatarHtml(g, seat)).join('')}
           ${this.soundButtonHtml()}
           ${this.undoButtonHtml(g)}
           <button class="quit-btn" data-act="quit" aria-label="対局をやめてトップ画面に戻る">
@@ -1027,7 +1169,7 @@ export class App implements GameUI {
         return `
           <div class="win-block ${tier === 'yakuman' ? 'yakuman-fx' : ''}" style="--tiles:${tileCount};--n:${yaku.length}">
             ${big ? this.confettiHtml(tier === 'yakuman' ? 60 : 36) : ''}
-            <h3>${names[w.seat]} の ${how}</h3>
+            <h3>${w.seat !== 0 ? this.faceHtml(g, w.seat, 'happy', 'res-face') : ''}${names[w.seat]} の ${how}</h3>
             ${this.handBlock(g, w.hand, w.melds, w.seat, w.winTile, { doraKinds })}
             <div class="dora-row">ドラ ${g.doraIndicators.map((t) => tileHtml(t, { red: g.isRed(t) })).join('')}
               ${showUra ? `　<ruby>裏<rt>うら</rt></ruby> ${r.uraIndicators.map((t) => tileHtml(t, { red: g.isRed(t) })).join('')}` : ''}</div>
@@ -1044,12 +1186,13 @@ export class App implements GameUI {
       body = `<h3>${furigana(`途中流局：${r.reason}`)}</h3>`;
     }
     const scores = g.players.map((p, s) => `
-      <tr><td>${names[s]}</td><td class="num">${fmt(p.score)}</td>
+      <tr><td>${s !== 0 ? this.faceHtml(g, s, r.scoreDelta[s] > 0 ? 'happy' : r.scoreDelta[s] < 0 ? 'sad' : 'normal', 'row-face') : ''}${names[s]}</td><td class="num">${fmt(p.score)}</td>
       <td class="num ${r.scoreDelta[s] > 0 ? 'plus' : r.scoreDelta[s] < 0 ? 'minus' : ''}">${r.scoreDelta[s] ? signed(r.scoreDelta[s]) : ''}</td></tr>`).join('');
     return `
       <div class="result">
         <div class="result-title">${roundRuby(g.roundName)} ${g.honba}${furigana('本場')}</div>
         ${body}
+        ${this.resultCommentHtml(g, r)}
         <table class="scores">${scores}</table>
         <button class="primary" data-act="next">次へ</button>
       </div>`;
@@ -1058,7 +1201,7 @@ export class App implements GameUI {
   private showFinal(st: FinalStanding[]): Promise<void> {
     const g = this.game!;
     const rows = st.map((x) => `
-      <tr class="${x.seat === 0 ? 'me-row' : ''}"><td>${x.rank}位</td><td>${furigana(g.players[x.seat].name)}</td>
+      <tr class="${x.seat === 0 ? 'me-row' : ''}"><td>${x.rank}位</td><td>${x.seat !== 0 ? this.faceHtml(g, x.seat, x.rank === 1 ? 'happy' : x.rank === 4 ? 'sad' : 'normal', 'row-face') : ''}${furigana(g.players[x.seat].name)}</td>
       <td class="num">${fmt(x.score)}</td><td class="num ${x.point >= 0 ? 'plus' : 'minus'}">${x.point > 0 ? '+' : ''}${x.point.toFixed(1)}</td></tr>`).join('');
     const mine = st.find((x) => x.seat === 0)!;
     const myRank = mine.rank;
@@ -1070,6 +1213,7 @@ export class App implements GameUI {
       score: mine.score,
       point: mine.point,
       ...this.tally,
+      ranks: [0, 1, 2, 3].map((s) => st.find((x) => x.seat === s)!.rank),
     });
     if (myRank === 1) sfx.win();
     trackEvent('game-finish', '対局終了');
@@ -1081,6 +1225,7 @@ export class App implements GameUI {
             <div class="result-title">対局終了</div>
             <h2 class="rank rank${myRank}">あなたは ${myRank}位</h2>
             <table class="scores">${rows}</table>
+            ${this.finalCommentsHtml(g, st)}
             <div class="btns">
               <button class="primary" data-act="restart">同じ設定でもう一度</button>
               <button data-act="title">設定に戻る</button>
