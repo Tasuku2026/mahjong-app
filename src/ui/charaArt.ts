@@ -131,17 +131,33 @@ const ART: Record<number, (e: Expr) => string> = {
     <path d="M9 50 Q32 60 55 50 L55.5 55 Q32 66 8.5 55 Z" fill="#a8e6d4" stroke="${OL}" stroke-width="1.3"/>
     <path d="M41 55 l2 8 l5 -1 l-2 -8 Z" fill="#8fd9c4" stroke="${OL}" stroke-width="1.1"/>`),
 
-  // ほー博士（ふくろう）: ココア色、まるめがねと小さな角帽
-  9: (e) => wrap(`
-    <path d="M13 24 L14 12 L22 19 Z" fill="#d8b58e" stroke="${OL}" stroke-width="1.4" stroke-linejoin="round"/>
-    <path d="M51 24 L50 12 L42 19 Z" fill="#d8b58e" stroke="${OL}" stroke-width="1.4" stroke-linejoin="round"/>
-    ${mochi('#e6c7a2')}
-    <circle cx="22.5" cy="37.5" r="7.2" fill="#fff6e8"/><circle cx="41.5" cy="37.5" r="7.2" fill="#fff6e8"/>
-    ${eyes(e, 37.5, 9.5)}
-    <circle cx="22.5" cy="37.5" r="7.6" fill="none" stroke="${OL}" stroke-width="1.3"/><circle cx="41.5" cy="37.5" r="7.6" fill="none" stroke="${OL}" stroke-width="1.3"/>
-    <path d="M30 37 h4" stroke="${OL}" stroke-width="1.3"/>
-    ${beak(e, 46, '#ffbe5c')}${blush(47, 17)}
-    <path d="M22 13 L32 8 L42 13 L32 18 Z" fill="#7f8fc4" stroke="${OL}" stroke-width="1.2" stroke-linejoin="round"/><path d="M40 13 v6" stroke="#ffd95e" stroke-width="1.3"/><circle cx="40" cy="19.5" r="1.3" fill="#ffd95e"/>`),
+  // ほー博士（ふくろう）: いぶし銀の羽、白いまゆ毛とおひげ、金のモノクルと蝶ネクタイ
+  9: (e) => {
+    const disc = '#f3ebdc';
+    // 目: ふだんは少しまぶたを下ろした、落ち着いた目
+    const eye = (x: number) => `<ellipse cx="${x}" cy="38" rx="2.3" ry="2.6" fill="${OL}"/><circle cx="${x + .8}" cy="37.3" r=".8" fill="#fff"/>`
+        + `<path d="M${x - 3.6} 36.4 Q${x} 34.6 ${x + 3.6} 36.4 L${x + 3.6} 34 L${x - 3.6} 34 Z" fill="${disc}"/>`
+        + `<path d="M${x - 3.4} 36.5 Q${x} 34.8 ${x + 3.4} 36.5" fill="none" stroke="${OL}" stroke-width="1.2" stroke-linecap="round"/>`;
+    const eyePair = e === 'normal' ? eye(22.5) + eye(41.5) : eyes(e, 38, 9.5);
+    // まゆ毛: 外にはね上がった白い太まゆ（悲しいときは下がる）
+    const brow = e === 'sad'
+      ? `<path d="M15.5 30 Q22 30 28.5 27 Q22 33 15.5 32 Z M48.5 30 Q42 30 35.5 27 Q42 33 48.5 32 Z" fill="#fff" stroke="${OL}" stroke-width=".9" stroke-linejoin="round"/>`
+      : `<path d="M14.5 28 Q21 25 28.5 30 Q21 28.5 15.5 31 Z M49.5 28 Q43 25 35.5 30 Q43 28.5 48.5 31 Z" fill="#fff" stroke="${OL}" stroke-width=".9" stroke-linejoin="round"/>`;
+    return wrap(`
+    <path d="M14 27 Q9 19 7.5 9.5 Q11.5 12.5 14 11.5 Q14.5 15.5 18 15 Q18.5 18.5 23.5 20.5 Z" fill="#8e7f70" stroke="${OL}" stroke-width="1.4" stroke-linejoin="round"/>
+    <path d="M50 27 Q55 19 56.5 9.5 Q52.5 12.5 50 11.5 Q49.5 15.5 46 15 Q45.5 18.5 40.5 20.5 Z" fill="#8e7f70" stroke="${OL}" stroke-width="1.4" stroke-linejoin="round"/>
+    ${mochi('#a99b8b')}
+    <path d="M32 26.5 C26 21.5 12.5 23 12.5 37 C12.5 47.5 22 51 32 48 C42 51 51.5 47.5 51.5 37 C51.5 23 38 21.5 32 26.5 Z" fill="${disc}"/>
+    <path d="M28.5 21.5 l1.6 1.6 l1.6 -1.6 M32.3 21.5 l1.6 1.6 l1.6 -1.6" fill="none" stroke="#7d6f61" stroke-width="1" stroke-linecap="round"/>
+    ${eyePair}${brow}
+    <circle cx="41.5" cy="38" r="6.3" fill="#fff" fill-opacity=".18" stroke="#d6a632" stroke-width="1.7"/>
+    <path d="M47.3 40.5 Q51 49 46 55.5" fill="none" stroke="#d6a632" stroke-width=".9" stroke-dasharray="1.4 .9"/>
+    <path d="M32 45.5 Q27 50.5 21 47.5 Q25.5 46.5 29 44 Z M32 45.5 Q37 50.5 43 47.5 Q38.5 46.5 35 44 Z" fill="#fff" stroke="${OL}" stroke-width=".9" stroke-linejoin="round"/>
+    ${beak(e, 44, '#e6a84a')}
+    <ellipse cx="15.5" cy="45" rx="3.4" ry="1.9" fill="#f2a99a" opacity=".55"/><ellipse cx="48.5" cy="45" rx="3.4" ry="1.9" fill="#f2a99a" opacity=".55"/>
+    <path d="M32 55.5 L23.5 51.5 L23.5 59.5 Z M32 55.5 L40.5 51.5 L40.5 59.5 Z" fill="#8c2f3c" stroke="${OL}" stroke-width="1.1" stroke-linejoin="round"/>
+    <circle cx="32" cy="55.5" r="2" fill="#6d2230" stroke="${OL}" stroke-width=".9"/>`);
+  },
 
   // とらきち（とら）: はちみつ色、ふんわりしましま
   10: (e) => wrap(`
