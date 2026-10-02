@@ -1,13 +1,13 @@
 import {
   Agent, CallAction, CallOptions, FinalStanding, Game, GameUI, RoundResult, TurnAction, TurnOptions,
 } from '../core/game';
-import { Tile, kindOf, WIND_NAMES } from '../core/tiles';
+import { Tile, kindOf, WIND_NAMES, doraFromIndicator } from '../core/tiles';
 import { DEFAULT_RULES, Rules } from '../core/types';
 import { CpuAgent, LEVEL_KAMI, LEVEL_ONI, levelLabel } from '../ai/cpu';
 import { tileHtml, meldHtml } from './tileView';
 import { helpButton, helpDialogHtml } from './help';
 import { T, furigana, kindRuby, roundRuby, yakuRuby } from './terms';
-import { yakuGuideHtml, yakuPopHtml } from './yakuGuide';
+import { aimDiscard, yakuGuideHtml, yakuNeed, yakuPopHtml } from './yakuGuide';
 import { AssistSettings, DEFAULT_ASSIST, DangerMode, Advice, adviseCall, adviseTurn, discardInfo, handDanger, remainCounts } from './assist';
 import { outlook, Outlook } from '../ai/value';
 import { setSoundEnabled, sfx, unlockAudio } from './sound';
@@ -103,6 +103,9 @@ export class App implements GameUI {
   private tally: RoundTally = emptyTally();
   /** 役確認ウインドウを開いているか（画面が狭いときのみ。対局は止めない） */
   private yakuOpen = false;
+  /** 「この役を狙う」で選んだ役（局が終わると解除） */
+  private aimYaku: string | null = null;
+  private aimCache: { pending: Pending; aim: string; tile: Tile | null } | null = null;
   /** 役確認で説明を開いている役（再描画しても開いたままにする） */
   private yakuOpenItems = new Set<string>();
   /** 対局ごとに増える番号（途中でやめた対局を見分ける） */
@@ -317,6 +320,8 @@ export class App implements GameUI {
   }
 
   showRoundResult(g: Game, r: RoundResult): Promise<void> {
+    this.aimYaku = null;
+    this.aimCache = null;
     const me = g.players[0];
     const t = this.tally;
     t.rounds++;
@@ -332,6 +337,13 @@ export class App implements GameUI {
     return new Promise((resolve) => {
       this.overlay = { html: this.resultHtml(g, r), resolve };
       this.render();
+      if (r.type === 'win' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        this.countUp();
+        const w = r.wins[0];
+        const stampAt = (w.hand.length + 1) * 45 + (w.result.yaku.length + 2) * 140;
+        if (w.result.yakuman) setTimeout(() => sfx.yakuman(), stampAt);
+        else if (w.result.limit) setTimeout(() => sfx.stamp(), stampAt);
+      }
     });
   }
 
@@ -393,6 +405,14 @@ export class App implements GameUI {
         }
         this.render();
         return;
+      case 'yaku-aim': {
+        const name = el.dataset.yaku!;
+        this.aimYaku = this.aimYaku === name ? null : name;
+        this.aimCache = null;
+        trackEvent('yaku-aim', '役を狙う');
+        this.render();
+        return;
+      }
       case 'yaku-close':
         // 背景（ウインドウの外）か × ボタン
         if (el.classList.contains('yaku-backdrop') && e.target !== el) return;
@@ -569,6 +589,7 @@ export class App implements GameUI {
           ${this.toolbarHtml()}
           ${SPACE_DEBUG ? centerFreeHtml() : ''}
           <div class="controls">${this.controlsHtml(g)}</div>
+          ${this.aimTagHtml(g)}
           <div class="yaku-corner"><button class="yaku-btn ${side ? 'on' : ''}" data-act="yaku-open" aria-pressed="${side}">${furigana('役')}確認</button>${helpButton('yaku')}</div>
           ${!wide && this.yakuOpen ? `<div class="yaku-panel">${this.yakuHtml(g, true)}</div>` : ''}
         </div></div>
@@ -687,6 +708,26 @@ export class App implements GameUI {
     this.popFor = null;
   }
 
+  /** 狙っている役のおすすめの捨て牌（手番ごとに1回計算） */
+  private aimTile(g: Game): Tile | null {
+    const pend = this.pending;
+    if (!this.aimYaku || !pend || pend.kind !== 'turn' || g.players[0].riichi) return null;
+    if (this.aimCache?.pending !== pend || this.aimCache.aim !== this.aimYaku) {
+      const tile = aimDiscard(g, this.aimYaku, pend.opts.discardable, remainCounts(g, 0, this.settings.assist.open));
+      this.aimCache = { pending: pend, aim: this.aimYaku, tile };
+    }
+    return this.aimCache.tile;
+  }
+
+  /** 卓の左下の「◆狙い：◯◯」の札 */
+  private aimTagHtml(g: Game): string {
+    if (!this.aimYaku) return '';
+    const need = yakuNeed(g, this.aimYaku, remainCounts(g, 0, this.settings.assist.open));
+    const state = !Number.isFinite(need) ? '<span class="aim-ng">もう成立しません</span>'
+      : need === 0 ? '<span class="aim-ok">完成！</span>' : `あと${need}枚`;
+    return `<div class="aim-tag"><span>◆狙い：${yakuRuby(this.aimYaku)} ${state}</span><button data-act="yaku-aim" data-yaku="${this.aimYaku}" aria-label="狙いを解除">×</button></div>`;
+  }
+
   /** 画面が広く、卓の横に役確認を置く余裕があるか */
   private yakuSideMode(): boolean {
     const board = Math.min(window.innerWidth, window.innerHeight - 200, 640);
@@ -694,7 +735,7 @@ export class App implements GameUI {
   }
 
   private yakuHtml(g: Game, closable: boolean): string {
-    return yakuGuideHtml(g, remainCounts(g, 0, this.settings.assist.open), this.yakuOpenItems, closable);
+    return yakuGuideHtml(g, remainCounts(g, 0, this.settings.assist.open), this.yakuOpenItems, closable, this.aimYaku);
   }
 
   /** 卓の左上の、効果音のオン・オフ */
@@ -818,6 +859,7 @@ export class App implements GameUI {
     const a = this.settings.assist;
     const danger = a.danger !== 'off' ? handDanger(g, a.danger) : null;
     const rec = pend ? this.hintTile(g) : null;
+    const aimTile = pend && !this.riichiMode ? this.aimTile(g) : null;
     const one = (t: Tile, extra: string[] = []) => {
       const cls = [...extra];
       if (pend) cls.push(allowed.includes(t) ? 'can' : 'dim');
@@ -828,6 +870,7 @@ export class App implements GameUI {
         badges.push(rec.fold ? '<span class="b-guard" title="守備のおすすめ">●</span>' : '<span class="b-star" title="攻めのおすすめ">★</span>');
       }
       const d = danger?.get(kindOf(t));
+      if (aimTile !== null && kindOf(aimTile) === kindOf(t)) badges.push('<span class="b-aim" title="狙っている役のおすすめ">◆</span>');
       if (d) badges.push(this.dangerBadge(d.value, a.danger, d.hitBy));
       const tile = tileHtml(t, { red: g.isRed(t), classes: cls, attrs: { 'data-act': 'tile', 'data-tile': t } });
       return `<div class="slot${extra.includes('drawn') ? ' drawn-slot' : ''}"><div class="badges">${badges.join('')}</div>${tile}</div>`;
@@ -883,14 +926,55 @@ export class App implements GameUI {
   // 結果画面
   // ------------------------------------------------------------------
 
-  private handBlock(g: Game, hand: Tile[], melds: RoundResult['wins'][number]['melds'], seat: number, winTile?: Tile): string {
+  private handBlock(
+    g: Game, hand: Tile[], melds: RoundResult['wins'][number]['melds'], seat: number, winTile?: Tile,
+    fx?: { doraKinds: Set<number> },
+  ): string {
     const red = (t: Tile) => g.isRed(t);
     const sorted = hand.slice().sort((a, b) => a - b);
+    let i = 0;
+    const one = (t: Tile, extra: string[] = []) => {
+      const cls = [...extra];
+      if (fx) {
+        cls.push('fx-in');
+        if (fx.doraKinds.has(kindOf(t)) || red(t)) cls.push('glow-dora');
+      }
+      return tileHtml(t, { red: red(t), classes: cls, attrs: fx ? { style: `--i:${i++}` } : {} });
+    };
     return `<div class="result-hand">
-      ${sorted.map((t) => tileHtml(t, { red: red(t) })).join('')}
-      ${winTile !== undefined ? `<span class="gap"></span>${tileHtml(winTile, { red: red(winTile), classes: ['win-tile'] })}` : ''}
+      ${sorted.map((t) => one(t)).join('')}
+      ${winTile !== undefined ? `<span class="gap"></span>${one(winTile, ['win-tile'])}` : ''}
       ${melds.map((m) => meldHtml(m, seat, red)).join('')}
     </div>`;
+  }
+
+  /** 紙吹雪 */
+  private confettiHtml(n: number): string {
+    const colors = ['#f2b33d', '#e2483d', '#5ec8ff', '#63d38f', '#c58cff', '#fff'];
+    return `<div class="confetti" aria-hidden="true">${Array.from({ length: n }, (_, i) =>
+      `<i style="left:${Math.random() * 100}%;background:${colors[i % colors.length]};animation-delay:${(Math.random() * 0.8).toFixed(2)}s;animation-duration:${(1.6 + Math.random() * 1.2).toFixed(2)}s;--r:${Math.floor(Math.random() * 720 - 360)}deg"></i>`).join('')}</div>`;
+  }
+
+  /** 点数を0から数え上げる */
+  private countUp(): void {
+    this.root.querySelectorAll<HTMLElement>('.points .count').forEach((el) => {
+      const to = Number(el.dataset.to);
+      const block = el.closest<HTMLElement>('.win-block');
+      const tiles = Number(block?.style.getPropertyValue('--tiles') || 14);
+      const n = Number(block?.querySelector<HTMLElement>('.yaku')?.style.getPropertyValue('--n') || 1);
+      const delay = tiles * 45 + n * 140 + 200;
+      const dur = 900;
+      const start = performance.now() + delay;
+      el.textContent = '0';
+      const step = (now: number) => {
+        const t = Math.min(1, Math.max(0, (now - start) / dur));
+        el.textContent = fmt(Math.round(to * (1 - Math.pow(1 - t, 3))));
+        if (t < 1 && el.isConnected) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+      // 画面が裏にあってアニメーションが止まっていても、最後は必ず正しい点数にする
+      setTimeout(() => { el.textContent = fmt(to); }, delay + dur + 50);
+    });
   }
 
   private resultHtml(g: Game, r: RoundResult): string {
@@ -900,20 +984,26 @@ export class App implements GameUI {
       body = r.wins.map((w) => {
         const res = w.result;
         const how = w.from === null ? 'ツモ' : `ロン（${names[w.from]}から）`;
-        const yaku = res.yaku.map((y) => `<li><span>${yakuRuby(y.name)}</span><span>${y.yakuman ? furigana(y.yakuman > 1 ? `${y.yakuman}倍役満` : '役満') : `${y.han}${furigana('翻')}`}</span></li>`);
-        if (res.dora) yaku.push(`<li><span>ドラ</span><span>${res.dora}${furigana('翻')}</span></li>`);
-        if (res.aka) yaku.push(`<li><span>${furigana('赤ドラ')}</span><span>${res.aka}${furigana('翻')}</span></li>`);
-        if (res.ura) yaku.push(`<li><span>${furigana('裏ドラ')}</span><span>${res.ura}${furigana('翻')}</span></li>`);
+        const yaku = res.yaku.map((y) => `<li class="fx-in"><span>${yakuRuby(y.name)}</span><span>${y.yakuman ? furigana(y.yakuman > 1 ? `${y.yakuman}倍役満` : '役満') : `${y.han}${furigana('翻')}`}</span></li>`);
+        if (res.dora) yaku.push(`<li class="fx-in"><span>ドラ</span><span>${res.dora}${furigana('翻')}</span></li>`);
+        if (res.aka) yaku.push(`<li class="fx-in"><span>${furigana('赤ドラ')}</span><span>${res.aka}${furigana('翻')}</span></li>`);
+        if (res.ura) yaku.push(`<li class="fx-in"><span>${furigana('裏ドラ')}</span><span>${res.ura}${furigana('翻')}</span></li>`);
         const head = res.yakuman ? res.limit : `${res.fu}符 ${res.han}翻${res.limit ? ` ${res.limit}` : ''}`;
         const showUra = g.players[w.seat].riichi;
+        const doraKinds = new Set([...g.doraIndicators, ...(showUra ? r.uraIndicators : [])].map((t) => doraFromIndicator(kindOf(t))));
+        const tileCount = w.hand.length + 1;
+        const tier = res.yakuman ? 'yakuman' : ({ 満貫: 'mangan', 跳満: 'haneman', 倍満: 'baiman', 三倍満: 'sanbaiman', 数え役満: 'yakuman' } as Record<string, string>)[res.limit] ?? '';
+        const big = !!tier && (w.seat === 0 || tier === 'yakuman');
         return `
-          <div class="win-block">
+          <div class="win-block ${tier === 'yakuman' ? 'yakuman-fx' : ''}" style="--tiles:${tileCount};--n:${yaku.length}">
+            ${big ? this.confettiHtml(tier === 'yakuman' ? 60 : 36) : ''}
             <h3>${names[w.seat]} の ${how}</h3>
-            ${this.handBlock(g, w.hand, w.melds, w.seat, w.winTile)}
+            ${this.handBlock(g, w.hand, w.melds, w.seat, w.winTile, { doraKinds })}
             <div class="dora-row">ドラ ${g.doraIndicators.map((t) => tileHtml(t, { red: g.isRed(t) })).join('')}
               ${showUra ? `　<ruby>裏<rt>うら</rt></ruby> ${r.uraIndicators.map((t) => tileHtml(t, { red: g.isRed(t) })).join('')}` : ''}</div>
-            <ul class="yaku">${yaku.join('')}</ul>
-            <div class="points">${furigana(head)}　<b>${fmt(w.gain)}点</b></div>
+            <ul class="yaku" style="--n:${yaku.length}">${yaku.map((li, i) => li.replace('class="fx-in"', `class="fx-in" style="--j:${i}"`)).join('')}</ul>
+            ${tier ? `<div class="stamp tier-${tier}">${furigana(res.limit)}</div>` : ''}
+            <div class="points">${furigana(head)}　<b class="count" data-to="${w.gain}">${fmt(w.gain)}</b><b>点</b></div>
           </div>`;
       }).join('');
     } else if (r.type === 'draw') {

@@ -886,3 +886,129 @@ button.danger-solid { background: #b8433c; border-color: #b8433c; }
 .yk-fold { margin-top: 8px; }
 .yk-fold > summary { cursor: pointer; color: var(--muted); font-weight: 700; padding: 6px 0; }
 .yk-empty { padding: 6px 0; }
+
+/* 「この役を狙う」 */
+.b-aim { color: #c58cff; font-size: 1.05em; }
+.yk-aim {
+  margin: 0 0 8px 1.8em;
+  min-height: 0;
+  padding: 5px 10px;
+  font-size: .78rem;
+  color: #e9d8ff;
+  background: rgba(150, 90, 220, .25);
+  border-color: #8d5fd0;
+}
+.yk-aim.on { background: #8d5fd0; color: #fff; }
+.aim-tag {
+  position: absolute;
+  left: 6.5%;
+  top: 66%;
+  max-width: 27.5%;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  padding: 3px 4px 3px 7px;
+  border-radius: 8px;
+  background: rgba(60, 25, 100, .85);
+  border: 1px solid #8d5fd0;
+  color: #f1e6ff;
+  font-size: .68rem;
+  line-height: 1.5;
+  z-index: 6;
+}
+.aim-tag ruby rt { color: #cdb6ef; }
+.aim-tag button { min-height: 0; width: 18px; height: 18px; padding: 0; border-radius: 50%; font-size: .7rem; line-height: 1; flex: none; }
+.aim-ng { color: #ff9c94; }
+.aim-ok { color: #ffd45e; font-weight: 800; }
+
+/* ---------------- 和了の演出 ---------------- */
+.win-block { position: relative; }
+/* 牌を1枚ずつ */
+@keyframes tile-pop {
+  0% { transform: translateY(-14px) rotateX(70deg); opacity: 0; }
+  100% { transform: none; opacity: 1; }
+}
+.result-hand .tile.fx-in { animation: tile-pop .32s cubic-bezier(.2, .8, .3, 1.2) both; animation-delay: calc(var(--i) * 45ms); }
+/* ドラ・赤ドラは金色に光る */
+@keyframes dora-glow {
+  0%, 100% { box-shadow: 0 0 0 1.5px #f2c94c, 0 0 6px 1px rgba(242, 201, 76, .6); }
+  50% { box-shadow: 0 0 0 1.5px #ffe08a, 0 0 12px 4px rgba(242, 201, 76, .9); }
+}
+.result-hand .tile.glow-dora { animation: tile-pop .32s cubic-bezier(.2, .8, .3, 1.2) both, dora-glow 1.6s ease-in-out infinite; animation-delay: calc(var(--i) * 45ms), calc(var(--i) * 45ms + .4s); }
+.result-hand .tile.win-tile.fx-in { outline: 2px solid var(--win); }
+/* 役を1つずつ */
+@keyframes yaku-in {
+  from { transform: translateX(-10px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+.yaku li.fx-in { animation: yaku-in .3s ease-out both; animation-delay: calc(var(--tiles, 14) * 45ms + var(--j, 0) * 140ms); }
+/* 満貫などのはんこ */
+@keyframes stamp-in {
+  0% { transform: scale(2.6) rotate(-18deg); opacity: 0; }
+  60% { transform: scale(.92) rotate(-8deg); opacity: 1; }
+  100% { transform: scale(1) rotate(-8deg); opacity: 1; }
+}
+.stamp {
+  position: absolute;
+  right: 6px;
+  top: 34px;
+  padding: 4px 12px;
+  border: 3px double currentColor;
+  border-radius: 8px;
+  font-weight: 900;
+  font-size: 1.35rem;
+  letter-spacing: .08em;
+  background: rgba(19, 38, 30, .7);
+  transform: rotate(-8deg);
+  animation: stamp-in .45s cubic-bezier(.2, .9, .3, 1.3) both;
+  animation-delay: calc(var(--tiles, 14) * 45ms + (var(--n, 1) + 2) * 140ms);
+  pointer-events: none;
+  z-index: 2;
+}
+.stamp ruby rt { color: inherit; opacity: .8; }
+.stamp.tier-mangan { color: #f2b33d; }
+.stamp.tier-haneman { color: #ff8a3d; }
+.stamp.tier-baiman { color: #ff5a5a; }
+.stamp.tier-sanbaiman { color: #d58cff; }
+.stamp.tier-yakuman {
+  color: #ffe27a;
+  font-size: 1.6rem;
+  text-shadow: 0 0 10px rgba(255, 210, 90, .9);
+}
+/* 役満: 金色の特別な背景 */
+@keyframes gold-shine {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+.win-block.yakuman-fx {
+  border-radius: 12px;
+  padding: 8px;
+  margin: -4px -4px 8px;
+  background: linear-gradient(110deg, rgba(120, 90, 20, .35), rgba(255, 215, 120, .28), rgba(120, 90, 20, .35));
+  background-size: 200% 100%;
+  animation: gold-shine 2.4s linear infinite;
+  box-shadow: 0 0 0 1px #d9a637, 0 0 24px rgba(242, 201, 76, .35);
+}
+.points .count { font-variant-numeric: tabular-nums; }
+/* 紙吹雪 */
+.confetti { position: absolute; inset: -16px -16px auto; height: 360px; pointer-events: none; overflow: hidden; z-index: 3; }
+.confetti i {
+  position: absolute;
+  top: -12px;
+  width: 7px;
+  height: 11px;
+  border-radius: 2px;
+  opacity: .9;
+  animation-name: confetti-fall;
+  animation-timing-function: ease-in;
+  animation-iteration-count: 1;
+  animation-fill-mode: both;
+}
+@keyframes confetti-fall {
+  0% { transform: translateY(0) rotate(0); opacity: 1; }
+  100% { transform: translateY(380px) rotate(var(--r)); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .result-hand .tile.fx-in, .result-hand .tile.glow-dora, .yaku li.fx-in, .stamp, .win-block.yakuman-fx, .confetti i { animation: none !important; }
+  .confetti { display: none; }
+}
