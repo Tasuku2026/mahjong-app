@@ -1029,3 +1029,17 @@ button.danger-solid { background: #b8433c; border-color: #b8433c; }
 }
 .undo-btn svg { width: 16px; height: 16px; }
 .undo-btn:disabled { opacity: .35; cursor: default; }
+
+/* 補助機能のボタンは同じ大きさ・文字は中央（一番長い「危険牌：正解」に合わせる） */
+.tools button.chip,
+.tools button.chip[data-act="danger"] {
+  width: calc(6em + 6px);
+  min-width: 0;
+  height: 22px;
+  padding: 0;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  letter-spacing: .02em;
+  white-space: nowrap;
+}
