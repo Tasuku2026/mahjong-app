@@ -112,6 +112,23 @@ export interface GameUI {
   showRoundResult(g: Game, r: RoundResult): Promise<void>;
 }
 
+/** 待った: 対局を巻き戻す合図（進行中の処理をここで打ち切る） */
+export class RewindSignal extends Error {
+  constructor() {
+    super('rewind');
+  }
+}
+
+/** 待ったで戻るための、自分の番の時点の記録 */
+interface Snapshot {
+  state: string;
+  cur: number;
+  rinshan: boolean;
+  firstDraw: boolean;
+  opts: TurnOptions;
+  prev: Snapshot | null;
+}
+
 export interface FinalStanding {
   seat: number;
   score: number;
@@ -151,6 +168,11 @@ export class Game {
   discardSeq = 0;
   ended = false;
   log: string[] = [];
+  /** 待った用: この局の自分の番の記録（新しい順につながる） */
+  private snapshot: Snapshot | null = null;
+  private rewindTarget: Snapshot | null = null;
+  /** 待ったが押された（次の区切りで巻き戻す） */
+  rewindRequested = false;
 
   constructor(rules: Rules, players: { name: string; isHuman: boolean; level: number }[], agents: Agent[], ui: GameUI) {
     this.rules = rules;
@@ -189,11 +211,25 @@ export class Game {
 
   async run(): Promise<FinalStanding[]> {
     while (!this.ended) {
-      const r = await this.playRound();
+      let resume: Snapshot | null = null;
+      let r: RoundResult;
+      for (;;) {
+        try {
+          r = await this.playRound(resume);
+          break;
+        } catch (e) {
+          if (!(e instanceof RewindSignal) || !this.rewindTarget) throw e;
+          resume = this.rewindTarget;
+          this.rewindTarget = null;
+          this.rewindRequested = false;
+        }
+      }
+      // 局が終わったら待ったはできない
+      this.snapshot = null;
       this.ui.update();
-      await this.ui.showRoundResult(this, r);
+      await this.ui.showRoundResult(this, r!);
       const before = { roundWind: this.roundWind, kyoku: this.kyoku, honba: this.honba };
-      this.advance(r);
+      this.advance(r!);
       // 終了時は最後の局の表示のままにする
       if (this.ended) Object.assign(this, before);
     }
@@ -290,29 +326,82 @@ export class Game {
     for (const p of this.players) sortTiles(p.hand);
   }
 
-  private async playRound(): Promise<RoundResult> {
-    this.setupRound();
-    let cur = this.dealer;
+  // ------------------------------------------------------------------
+  // 待った
+  // ------------------------------------------------------------------
+
+  /** 待ったできるか。atOwnTurn: いま自分が牌を選ぶ番か（それなら1つ前の自分の番へ戻る） */
+  canRewind(atOwnTurn: boolean): boolean {
+    return !!(atOwnTurn ? this.snapshot?.prev : this.snapshot);
+  }
+
+  requestRewind(atOwnTurn: boolean): boolean {
+    const target = atOwnTurn ? this.snapshot?.prev : this.snapshot;
+    if (!target) return false;
+    this.rewindTarget = target;
+    this.rewindRequested = true;
+    return true;
+  }
+
+  private capture(cur: number, rinshan: boolean, firstDraw: boolean, opts: TurnOptions): void {
+    const state = JSON.stringify({
+      players: this.players, live: this.live, dead: this.dead, doraCount: this.doraCount, kanCount: this.kanCount,
+      kanSeats: this.kanSeats, rinshanDrawn: this.rinshanDrawn, callsHappened: this.callsHappened,
+      lastDiscard: this.lastDiscard, discardSeq: this.discardSeq, kyoutaku: this.kyoutaku,
+    });
+    this.snapshot = { state, cur, rinshan, firstDraw, opts: JSON.parse(JSON.stringify(opts)), prev: this.snapshot };
+  }
+
+  private restore(s: Snapshot): void {
+    Object.assign(this, JSON.parse(s.state));
+    this.snapshot = s.prev;
+  }
+
+  private async playRound(resume: Snapshot | null = null): Promise<RoundResult> {
+    let cur: number;
     let needDraw = true;
-    let rinshan = false;
+    let rinshan: boolean;
+    let resumed = resume;
+    if (resume) {
+      this.restore(resume);
+      cur = resume.cur;
+      rinshan = resume.rinshan;
+    } else {
+      this.setupRound();
+      this.snapshot = null;
+      cur = this.dealer;
+      rinshan = false;
+    }
     this.ui.update();
 
     for (;;) {
       this.current = cur;
       const p = this.players[cur];
-      if (needDraw) {
-        if (!rinshan && this.live.length === 0) return this.exhaustiveDraw();
-        const t = rinshan ? this.dead[this.rinshanDrawn++] : this.live.pop()!;
-        p.hand.push(t);
-        p.drawn = t;
-        p.tempFuriten = false;
+      let firstDraw: boolean;
+      let opts: TurnOptions;
+      if (resumed) {
+        // 待ったで戻ってきた: ツモは済んでいるので、選ぶところから
+        firstDraw = resumed.firstDraw;
+        opts = resumed.opts;
+        resumed = null;
       } else {
-        p.drawn = null;
+        if (needDraw) {
+          if (!rinshan && this.live.length === 0) return this.exhaustiveDraw();
+          const t = rinshan ? this.dead[this.rinshanDrawn++] : this.live.pop()!;
+          p.hand.push(t);
+          p.drawn = t;
+          p.tempFuriten = false;
+        } else {
+          p.drawn = null;
+        }
+        this.ui.update();
+        firstDraw = needDraw && !rinshan && p.discardCount === 0 && !this.callsHappened;
+        opts = this.turnOptions(p, needDraw, rinshan, firstDraw);
       }
-      this.ui.update();
-
-      const firstDraw = needDraw && !rinshan && p.discardCount === 0 && !this.callsHappened;
-      const opts = this.turnOptions(p, needDraw, rinshan, firstDraw);
+      // 自分が牌を選ぶ番を記録（リーチ後の自動ツモ切りは選ばないので記録しない）
+      if (p.isHuman && !(p.riichi && !opts.canTsumo && opts.ankanKinds.length === 0)) {
+        this.capture(cur, rinshan, firstDraw, opts);
+      }
       const act = await this.agents[cur].turn(this, cur, opts);
 
       if (act.type === 'tsumo' && opts.canTsumo && opts.tsumoResult) {

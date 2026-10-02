@@ -558,11 +558,6 @@ button.danger-btn { background: transparent; color: var(--minus); border-color: 
   padding: 2px 3px;
 }
 
-/* 【確認用・あとで削除】常に空いているスペース（?space=1 のときだけ） */
-.board-wrap { width: 100%; display: flex; justify-content: center; flex: none; }
-.board-wrap.space-debug { background: rgba(255, 105, 180, .55); }
-.free-space { position: absolute; background: rgba(255, 105, 180, .55); pointer-events: none; z-index: 4; }
-.free-space.blue { background: rgba(80, 200, 255, .55); }
 /* 危険度ボタンは表示が変わっても幅を固定（ボタン列がずれないように） */
 button.chip[data-act="danger"] { min-width: calc(6em + 14px); }
 
@@ -851,7 +846,7 @@ button.danger-solid { background: #b8433c; border-color: #b8433c; }
 .game.side-layout > .assist { grid-column: 1; grid-row: 3; width: auto; max-width: none; align-self: stretch; }
 .game.side-layout > .yaku-side {
   grid-column: 2;
-  grid-row: 1 / 3;
+  grid-row: 1 / 4;
   align-self: stretch;
   height: auto;
   /* 役確認の中身の長さで、卓や手牌の行が伸びないようにする */
@@ -1012,3 +1007,25 @@ button.danger-solid { background: #b8433c; border-color: #b8433c; }
   .result-hand .tile.fx-in, .result-hand .tile.glow-dora, .yaku li.fx-in, .stamp, .win-block.yakuman-fx, .confetti i { animation: none !important; }
   .confetti { display: none; }
 }
+
+.board-wrap { width: 100%; display: flex; justify-content: center; flex: none; }
+
+/* 卓の右側（東1局と同じ高さ）: 待った */
+.undo-btn {
+  position: absolute;
+  right: 7%;
+  top: 13%;
+  min-height: 0;
+  height: 28px;
+  padding: 0 10px 0 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  font-size: .76rem;
+  background: rgba(0, 0, 0, .3);
+  border: 1px solid rgba(255, 255, 255, .2);
+  z-index: 6;
+}
+.undo-btn svg { width: 16px; height: 16px; }
+.undo-btn:disabled { opacity: .35; cursor: default; }

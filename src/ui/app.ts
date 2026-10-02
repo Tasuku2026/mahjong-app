@@ -1,5 +1,5 @@
 import {
-  Agent, CallAction, CallOptions, FinalStanding, Game, GameUI, RoundResult, TurnAction, TurnOptions,
+  Agent, CallAction, CallOptions, FinalStanding, Game, GameUI, RewindSignal, RoundResult, TurnAction, TurnOptions,
 } from '../core/game';
 import { Tile, kindOf, WIND_NAMES, doraFromIndicator } from '../core/tiles';
 import { DEFAULT_RULES, Rules } from '../core/types';
@@ -12,12 +12,11 @@ import { AssistSettings, DEFAULT_ASSIST, DangerMode, Advice, adviseCall, adviseT
 import { outlook, Outlook } from '../ai/value';
 import { setSoundEnabled, sfx, unlockAudio } from './sound';
 import { analyticsEnabled, trackEvent } from './analytics';
-import { SPACE_DEBUG, centerFreeHtml, paintBoardFree, paintLowerFree } from './debugSpace';
 import { GameRecord, RoundTally, clearRecords, emptyTally, levelBand, loadRecords, saveRecord, summarize } from './stats';
 
 type Pending =
-  | { kind: 'turn'; seat: number; opts: TurnOptions; resolve: (a: TurnAction) => void }
-  | { kind: 'call'; seat: number; tile: Tile; from: number; opts: CallOptions; resolve: (a: CallAction) => void };
+  | { kind: 'turn'; seat: number; opts: TurnOptions; resolve: (a: TurnAction) => void; reject: (e: unknown) => void }
+  | { kind: 'call'; seat: number; tile: Tile; from: number; opts: CallOptions; resolve: (a: CallAction) => void; reject: (e: unknown) => void };
 
 export interface Settings {
   rules: Rules;
@@ -79,12 +78,12 @@ class HumanAgent implements Agent {
       await g.ui.delay(450);
       return { type: 'discard', tile: opts.discardable[0] };
     }
-    return new Promise((resolve) => this.app.setPending({ kind: 'turn', seat, opts, resolve }));
+    return new Promise((resolve, reject) => this.app.setPending({ kind: 'turn', seat, opts, resolve, reject }));
   }
 
   call(_g: Game, seat: number, tile: Tile, from: number, opts: CallOptions): Promise<CallAction> {
     if (!this.live()) return never();
-    return new Promise((resolve) => this.app.setPending({ kind: 'call', seat, tile, from, opts, resolve }));
+    return new Promise((resolve, reject) => this.app.setPending({ kind: 'call', seat, tile, from, opts, resolve, reject }));
   }
 }
 
@@ -270,10 +269,18 @@ export class App implements GameUI {
     const token = ++this.gameToken;
     const live = () => token === this.gameToken;
     // この対局専用の窓口。終了ボタンでやめた後は、古い対局の処理がここで止まる
+    let gameRef: Game | null = null;
+    const rewound = () => {
+      if (gameRef?.rewindRequested) throw new RewindSignal();
+    };
     const ui: GameUI = {
-      update: () => { if (live()) this.update(); },
-      delay: (ms) => (live() ? this.delay(ms).then(() => (live() ? undefined : never<void>())) : never()),
-      announce: (seat, text) => (live() ? this.announce(seat, text) : never()),
+      update: () => {
+        if (!live()) return;
+        rewound();
+        this.update();
+      },
+      delay: (ms) => (live() ? this.delay(ms).then(() => (live() ? rewound() : never<void>())) : never()),
+      announce: (seat, text) => (live() ? (rewound(), this.announce(seat, text).then(rewound)) : never()),
       showRoundResult: (game, r) => (live() ? this.showRoundResult(game, r) : never()),
     };
     const human = new HumanAgent(this, live);
@@ -285,6 +292,7 @@ export class App implements GameUI {
     ];
     const agents: Agent[] = [human, new CpuAgent(s.levels[0]), new CpuAgent(s.levels[1]), new CpuAgent(s.levels[2])];
     const g = new Game({ ...s.rules }, players, agents, ui);
+    gameRef = g;
     this.game = g;
     this.tally = emptyTally();
     this.animatedDiscard = '';
@@ -419,6 +427,22 @@ export class App implements GameUI {
         this.yakuOpen = false;
         this.render();
         return;
+      case 'undo': {
+        const g = this.game;
+        if (!g || this.overlay) return;
+        // 自分が牌を選んでいる最中なら1つ前の自分の番へ、それ以外は直近の自分の番へ
+        if (!g.requestRewind(this.pending?.kind === 'turn')) return;
+        const p = this.pending;
+        this.pending = null;
+        this.selected = null;
+        this.riichiMode = false;
+        this.bubbles.clear();
+        this.hintCache = null;
+        this.aimCache = null;
+        trackEvent('undo', '待った');
+        p?.reject(new RewindSignal());
+        return;
+      }
       case 'quit':
         document.querySelector('.confirm-overlay')?.remove();
         document.body.insertAdjacentHTML('beforeend', `
@@ -579,15 +603,15 @@ export class App implements GameUI {
     this.animatedDraw = drawn;
     this.root.innerHTML = `
       <div class="game ${side ? 'side-layout' : ''}">
-        <div class="board-wrap ${SPACE_DEBUG ? 'space-debug' : ''}"><div class="board">
+        <div class="board-wrap"><div class="board">
           ${this.centerHtml(g)}
           ${[0, 1, 2, 3].map((s) => this.seatHtml(g, s)).join('')}
           ${this.soundButtonHtml()}
+          ${this.undoButtonHtml(g)}
           <button class="quit-btn" data-act="quit" aria-label="対局をやめてトップ画面に戻る">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
           </button>
           ${this.toolbarHtml()}
-          ${SPACE_DEBUG ? centerFreeHtml() : ''}
           <div class="controls">${this.controlsHtml(g)}</div>
           ${this.aimTagHtml(g)}
           <div class="yaku-corner"><button class="yaku-btn ${side ? 'on' : ''}" data-act="yaku-open" aria-pressed="${side}">${furigana('役')}確認</button>${helpButton('yaku')}</div>
@@ -606,10 +630,6 @@ export class App implements GameUI {
     if (assist) assist.scrollTop = scroll;
     const yk = this.root.querySelector('.yaku-panel, .yaku-side');
     if (yk) yk.scrollTop = yakuScroll;
-    if (SPACE_DEBUG) {
-      paintBoardFree(this.root);
-      paintLowerFree(this.root);
-    }
   }
 
   private centerHtml(g: Game): string {
@@ -706,6 +726,14 @@ export class App implements GameUI {
   private hideYakuPop(): void {
     document.querySelectorAll('.yk-pop').forEach((e) => e.remove());
     this.popFor = null;
+  }
+
+  /** 待ったボタン（戻れないときは薄く表示） */
+  private undoButtonHtml(g: Game): string {
+    const ok = !this.overlay && g.canRewind(this.pending?.kind === 'turn');
+    return `<button class="undo-btn" data-act="undo" ${ok ? '' : 'disabled'} aria-label="待った（1手前の自分の番に戻る）">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7L4 12l5 5M4.5 12H15a5 5 0 0 1 0 10h-3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>待った
+    </button>`;
   }
 
   /** 狙っている役のおすすめの捨て牌（手番ごとに1回計算） */
