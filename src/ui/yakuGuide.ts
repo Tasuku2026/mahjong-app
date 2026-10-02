@@ -1,9 +1,10 @@
-// 役確認: 役の説明と、今の手牌でどの役が狙いやすいかの目安
+// 役確認: 役の説明と、今の手牌で各役を成立させられる確率・あと何枚必要か
 import { Game } from '../core/game';
 import { Kind, kindOf, toCounts, isHonor, isYaochu, isDragon, isTerminal, suitOf, parseTiles, WIND_NAMES } from '../core/tiles';
 import { calcShanten, shantenChiitoi, shantenKokushi } from '../core/shanten';
 import { meldIsOpen, meldIsKan } from '../core/types';
 import { tileHtml } from './tileView';
+import { none, restrictedShanten, shantenWithRequired } from '../ai/yakuShanten';
 import { furigana, yakuRuby } from './terms';
 
 interface Ctx {
@@ -64,7 +65,7 @@ const YAKU: YakuDef[] = [
     example: '123m456p789s234s55p',
     fit: (c) => needMenzen(c) ?? (c.shanten <= 0
       ? { score: 1, note: 'テンパイしています。リーチできます！' }
-      : { score: clamp(0.85 - c.shanten * 0.12), note: `鳴かずに進めて、あと${c.shanten}枚でテンパイ` }),
+      : { score: clamp(0.85 - c.shanten * 0.12), note: '鳴かずに進めて、テンパイしたらリーチ' }),
   },
   {
     name: '門前清自摸和', han: 1, openHan: null,
@@ -393,6 +394,181 @@ const YAKU: YakuDef[] = [
   { name: '地和', han: 13, openHan: null, yakuman: true, luck: true, desc: '子が、最初のツモで和了する（誰も鳴いていないとき）。', fit: () => LUCK },
 ];
 
+// ---------------------------------------------------------------
+// 役ごとの「あと何枚」と「成立する確率」
+// ---------------------------------------------------------------
+
+interface SCtx {
+  meldCount: number;
+  menzen: boolean;
+  hasChi: boolean;
+  kuitan: boolean;
+  valuable: (k: Kind) => boolean;
+  /** 副露している牌の種類（ポン・カンは1種類、チーは3種類） */
+  meldKinds: Kind[][];
+  ponKinds: Kind[];
+}
+
+/** hc: 手牌（副露を除く）、cc: 手牌 + 副露（カンも3枚として数える） */
+type ShFn = (x: SCtx, hc: number[], cc: number[]) => number;
+
+const INF = Infinity;
+const seq = (k: Kind) => [k, k + 1, k + 2];
+const reqMap = (kinds: Kind[], n = 1) => {
+  const m = new Map<Kind, number>();
+  for (const k of kinds) m.set(k, (m.get(k) ?? 0) + n);
+  return m;
+};
+const minOf = (xs: number[]) => xs.reduce((a, b) => Math.min(a, b), INF);
+const SEQ_STARTS = Array.from({ length: 27 }, (_, k) => k).filter((k) => k % 9 <= 6);
+const edgeNum = (k: Kind) => [0, 1, 2, 6, 7, 8].includes(k % 9);
+const GREEN = new Set([19, 20, 21, 23, 25, 32]);
+/** 手牌と副露をまとめて数えるときの設定 */
+const FREE = { meldCount: 0 };
+
+const SH: Record<string, ShFn> = {
+  立直: (x, hc) => (x.menzen ? calcShanten(hc, x.meldCount) : INF),
+  門前清自摸和: (x, hc) => (x.menzen ? calcShanten(hc, x.meldCount) : INF),
+  断幺九: (x, hc) => {
+    if (x.meldKinds.some((ks) => ks.some(isYaochu))) return INF;
+    if (!x.menzen && !x.kuitan) return INF;
+    return restrictedShanten(hc, { meldCount: x.meldCount, kindOk: (k) => !isYaochu(k) });
+  },
+  役牌: (x, hc) => minOf([27, 28, 29, 30, 31, 32, 33].filter(x.valuable).map((v) =>
+    x.ponKinds.includes(v) ? calcShanten(hc, x.meldCount)
+      : shantenWithRequired(hc, reqMap([v], 3), 1, false, { meldCount: x.meldCount }))),
+  平和: (x, hc) => (x.menzen ? restrictedShanten(hc, { meldCount: x.meldCount, koutsuOk: none, pairOk: (k) => !x.valuable(k) }) : INF),
+  一盃口: (x, hc) => (x.menzen
+    ? minOf(SEQ_STARTS.map((k) => shantenWithRequired(hc, reqMap(seq(k), 2), 2, false, { meldCount: x.meldCount })))
+    : INF),
+  七対子: (x, hc) => (x.menzen && x.meldCount === 0 ? shantenChiitoi(hc) : INF),
+  三色同順: (_x, _hc, cc) => minOf([0, 1, 2, 3, 4, 5, 6].map((n) =>
+    shantenWithRequired(cc, reqMap([0, 9, 18].flatMap((b) => seq(b + n))), 3, false, FREE))),
+  一気通貫: (_x, _hc, cc) => minOf([0, 9, 18].map((b) =>
+    shantenWithRequired(cc, reqMap([0, 3, 6].flatMap((d) => seq(b + d))), 3, false, FREE))),
+  混全帯幺九: (x, _hc, cc) => {
+    if (x.meldKinds.some((ks) => !ks.some(isYaochu))) return INF;
+    return restrictedShanten(cc, {
+      meldCount: 0, kindOk: (k) => isHonor(k) || edgeNum(k),
+      shuntsuOk: (k) => k % 9 === 0 || k % 9 === 6, koutsuOk: isYaochu, pairOk: isYaochu,
+    });
+  },
+  対々和: (x, hc) => (x.hasChi ? INF : restrictedShanten(hc, { meldCount: x.meldCount, shuntsuOk: none })),
+  三暗刻: (x, hc) => {
+    const top = [...Array(34).keys()].sort((a, b) => hc[b] - hc[a]).slice(0, 3);
+    return shantenWithRequired(hc, reqMap(top, 3), 3, false, { meldCount: x.meldCount });
+  },
+  小三元: (_x, _hc, cc) => minOf([31, 32, 33].map((d) => {
+    const r = reqMap([31, 32, 33].filter((k) => k !== d), 3);
+    r.set(d, 2);
+    return shantenWithRequired(cc, r, 2, true, FREE);
+  })),
+  混老頭: (_x, _hc, cc) => restrictedShanten(cc, { meldCount: 0, kindOk: isYaochu, shuntsuOk: none }),
+  三色同刻: (_x, _hc, cc) => minOf([...Array(9).keys()].map((n) =>
+    shantenWithRequired(cc, reqMap([n, 9 + n, 18 + n], 3), 3, false, FREE))),
+  二盃口: (x, hc) => {
+    if (!x.menzen || x.meldCount > 0) return INF;
+    const starts = SEQ_STARTS.filter((k) => seq(k).filter((j) => hc[j] > 0).length >= 2);
+    const res: number[] = [];
+    for (const a of starts) {
+      for (const b of starts) {
+        if (b >= a) res.push(shantenWithRequired(hc, reqMap([...seq(a), ...seq(a), ...seq(b), ...seq(b)]), 4, false, FREE));
+      }
+    }
+    return minOf(res);
+  },
+  純全帯幺九: (x, _hc, cc) => {
+    if (x.meldKinds.some((ks) => ks.some(isHonor) || !ks.some(isTerminal))) return INF;
+    return restrictedShanten(cc, {
+      meldCount: 0, kindOk: (k) => !isHonor(k) && edgeNum(k),
+      shuntsuOk: (k) => k % 9 === 0 || k % 9 === 6, koutsuOk: isTerminal, pairOk: isTerminal,
+    });
+  },
+  混一色: (x, hc) => minOf([0, 1, 2].map((s) =>
+    (x.meldKinds.some((ks) => ks.some((k) => !isHonor(k) && suitOf(k) !== s)) ? INF
+      : restrictedShanten(hc, { meldCount: x.meldCount, kindOk: (k) => isHonor(k) || suitOf(k) === s })))),
+  清一色: (x, hc) => minOf([0, 1, 2].map((s) =>
+    (x.meldKinds.some((ks) => ks.some((k) => isHonor(k) || suitOf(k) !== s)) ? INF
+      : restrictedShanten(hc, { meldCount: x.meldCount, kindOk: (k) => !isHonor(k) && suitOf(k) === s })))),
+  国士無双: (x, hc) => (x.menzen && x.meldCount === 0 ? shantenKokushi(hc) : INF),
+  四暗刻: (x, hc) => (x.menzen ? restrictedShanten(hc, { meldCount: x.meldCount, shuntsuOk: none }) : INF),
+  大三元: (_x, _hc, cc) => shantenWithRequired(cc, reqMap([31, 32, 33], 3), 3, false, FREE),
+  小四喜: (_x, _hc, cc) => minOf([27, 28, 29, 30].map((w) => {
+    const r = reqMap([27, 28, 29, 30].filter((k) => k !== w), 3);
+    r.set(w, 2);
+    return shantenWithRequired(cc, r, 3, true, FREE);
+  })),
+  大四喜: (_x, _hc, cc) => shantenWithRequired(cc, reqMap([27, 28, 29, 30], 3), 4, false, FREE),
+  字一色: (x, _hc, cc) => Math.min(
+    restrictedShanten(cc, { meldCount: 0, kindOk: isHonor, shuntsuOk: none }),
+    x.meldCount === 0 ? shantenChiitoi(cc.map((n, k) => (isHonor(k) ? n : 0))) : INF),
+  緑一色: (_x, _hc, cc) => restrictedShanten(cc, { meldCount: 0, kindOk: (k) => GREEN.has(k) }),
+  清老頭: (_x, _hc, cc) => restrictedShanten(cc, { meldCount: 0, kindOk: isTerminal, shuntsuOk: none }),
+  九蓮宝燈: (x, hc) => {
+    if (!x.menzen || x.meldCount > 0) return INF;
+    const pat = [3, 1, 1, 1, 1, 1, 1, 1, 3];
+    return minOf([0, 9, 18].map((b) => {
+      let fit = 0;
+      let inSuit = 0;
+      for (let i = 0; i < 9; i++) {
+        fit += Math.min(hc[b + i], pat[i]);
+        inSuit += hc[b + i];
+      }
+      const extra = inSuit > fit ? 1 : 0;
+      return 14 - fit - extra - 1;
+    }));
+  },
+};
+
+interface Est {
+  /** あと何枚の入れ替えが必要か（0 = 和了の形がそろっている、INF = 不可能） */
+  need: number;
+  /** この局のうちに成立させられる確率 */
+  prob: number;
+}
+
+function estimate(fn: ShFn, x: SCtx, hc: number[], cc: number[], unseen: number[], turnsLeft: number): Est {
+  const s = fn(x, hc, cc);
+  if (!Number.isFinite(s) || s >= 9) return { need: INF, prob: 0 };
+  const need = Math.max(0, s + 1);
+  if (need === 0) return { need: 0, prob: 1 };
+  if (need > 5) return { need, prob: 0 };
+  // 引いたら1歩近づく牌の残り枚数
+  let useful = 0;
+  for (let k = 0; k < 34; k++) {
+    if (unseen[k] <= 0) continue;
+    hc[k]++;
+    cc[k]++;
+    if (fn(x, hc, cc) < s) useful += unseen[k];
+    hc[k]--;
+    cc[k]--;
+  }
+  // 「役・期待値」と同じ目安: テンパイまでの距離ごとの標準的な和了率を、残り巡目と役に役立つ牌の枚数で補正
+  const sh = need - 1;
+  const base = [0.5, 0.35, 0.22, 0.12, 0.06][sh];
+  const typical = [8, 20, 35, 50, 60][sh];
+  const timeFactor = Math.pow(Math.min(1.2, turnsLeft / 12), sh + 1);
+  const ukeFactor = Math.min(1.4, Math.max(0.3, Math.sqrt(useful / typical)));
+  return { need, prob: Math.min(0.9, base * timeFactor * ukeFactor) };
+}
+
+function sctx(g: Game): { x: SCtx; hc: number[]; cc: number[] } {
+  const p = g.players[0];
+  const hc = toCounts(p.hand);
+  const cc = hc.slice();
+  for (const m of p.melds) for (const k of m.tiles.map(kindOf).slice(0, 3)) cc[k]++;
+  const x: SCtx = {
+    meldCount: p.melds.length,
+    menzen: !p.melds.some(meldIsOpen),
+    hasChi: p.melds.some((m) => m.type === 'chi'),
+    kuitan: g.rules.kuitan,
+    valuable: (k) => isDragon(k) || k === g.seatWind(0) || k === g.roundWindKind,
+    meldKinds: p.melds.map((m) => [...new Set(m.tiles.map(kindOf))]),
+    ponKinds: p.melds.filter((m) => m.type !== 'chi').map((m) => kindOf(m.tiles[0])),
+  };
+  return { x, hc, cc };
+}
+
 function context(g: Game): Ctx {
   const p = g.players[0];
   const hand = p.hand.map(kindOf);
@@ -407,63 +583,101 @@ function context(g: Game): Ctx {
   };
 }
 
-function mark(score: number): { sym: string; cls: string; label: string } {
-  if (score >= 0.75) return { sym: '◎', cls: 'fit-great', label: '狙える' };
-  if (score >= 0.45) return { sym: '○', cls: 'fit-good', label: 'あと少し' };
-  if (score >= 0.2) return { sym: '△', cls: 'fit-far', label: '遠い' };
-  if (score > 0) return { sym: '－', cls: 'fit-none', label: '' };
-  return { sym: '×', cls: 'fit-no', label: '今は無理' };
+function mark(e: Est, luck: boolean): { sym: string; cls: string; label: string } {
+  if (luck) return { sym: '☆', cls: 'fit-luck', label: '偶然' };
+  if (!Number.isFinite(e.need)) return { sym: '×', cls: 'fit-no', label: '今は無理' };
+  if (e.need === 0 || e.prob >= 0.2) return { sym: '◎', cls: 'fit-great', label: '狙える' };
+  if (e.prob >= 0.05) return { sym: '○', cls: 'fit-good', label: 'あと少し' };
+  return { sym: '△', cls: 'fit-far', label: '遠い' };
 }
 
 function hanLabel(y: YakuDef, kuitan: boolean): string {
-  if (y.yakuman) return furigana(y.openHan === null ? '役満（門前のみ）' : '役満');
+  const menzenOnly = `<span class="yk-tag menzen">${furigana('門前')}のみ</span>`;
+  if (y.yakuman) return furigana('役満') + (y.openHan === null ? menzenOnly : '<span class="yk-tag">鳴いてもOK</span>');
   const open = y.name === '断幺九' && !kuitan ? null : y.openHan;
   const closed = `${y.han}${furigana('翻')}`;
-  if (open === null) return `${closed}<span class="yk-tag menzen">${furigana('門前')}のみ</span>`;
+  if (open === null) return closed + menzenOnly;
   if (open === y.han) return `${closed}<span class="yk-tag">鳴いてもOK</span>`;
   return `${closed}<span class="yk-tag">鳴くと${open}${furigana('翻')}</span>`;
 }
 
-function itemHtml(y: YakuDef, c: Ctx): string {
-  const f = y.fit(c);
-  const m = mark(f.score);
+function statHtml(e: Est, luck: boolean): string {
+  if (luck) return '<span class="yk-stat">偶然つく役</span>';
+  if (!Number.isFinite(e.need)) return '<span class="yk-stat">この局では成立しません</span>';
+  if (e.need === 0) return '<span class="yk-stat done">和了の形がそろっています！</span>';
+  const pct = e.prob < 0.01 ? '1%未満' : `約${Math.round(e.prob * 100)}%`;
+  return `<span class="yk-stat">成立する確率 <b>${pct}</b>・最短あと<b>${e.need}</b>枚</span>`;
+}
+
+interface Row { y: YakuDef; e: Est; note: string }
+
+function itemHtml(r: Row, open: Set<string>, kuitan: boolean): string {
+  const { y, e } = r;
+  const m = mark(e, !!y.luck);
   const example = y.example
     ? `<div class="yk-example">${parseTiles(y.example).sort((a, b) => a - b).map((t) => tileHtml(t)).join('')}</div>`
-    : '<div class="yk-example muted small">（牌の例はありません）</div>';
+    : '';
+  const showNote = r.note && !y.luck && Number.isFinite(e.need) && e.need > 0;
   return `
-    <details class="yk-item ${m.cls}">
+    <details class="yk-item ${m.cls}" data-yaku="${y.name}" ${open.has(y.name) ? 'open' : ''}>
       <summary>
         <span class="yk-mark" title="${m.label}">${m.sym}</span>
         <span class="yk-name">${yakuRuby(y.name)}</span>
-        <span class="yk-han">${hanLabel(y, c.g.rules.kuitan)}</span>
-        <span class="yk-note">${furigana(f.note)}</span>
+        <span class="yk-han">${hanLabel(y, kuitan)}</span>
+        <span class="yk-note">${statHtml(e, !!y.luck)}${showNote ? `<br>${furigana(r.note)}` : ''}</span>
       </summary>
       <p class="yk-desc">${furigana(y.desc)}</p>
       ${example}
     </details>`;
 }
 
-/** 役確認ウインドウの中身 */
-export function yakuGuideHtml(g: Game): string {
+let cache: { key: string; rows: Row[] } | null = null;
+
+/** 役ごとの見込み（手牌・副露・残り巡目が変わったときだけ計算し直す） */
+function rows(g: Game, unseen: number[]): Row[] {
+  const p = g.players[0];
+  const turnsLeft = Math.floor(g.live.length / 4);
+  const key = [
+    p.hand.slice().sort((a, b) => a - b).join(','), p.melds.map((m) => m.tiles.join('.')).join('|'),
+    turnsLeft, g.roundName, g.honba,
+  ].join('/');
+  if (cache?.key === key) return cache.rows;
   const c = context(g);
-  const order = (list: YakuDef[]) => list
-    .map((y) => ({ y, s: y.fit(c).score }))
-    .sort((a, b) => b.s - a.s || a.y.han - b.y.han)
-    .map((x) => x.y);
-  const normal = order(YAKU.filter((y) => !y.yakuman));
-  const yakuman = order(YAKU.filter((y) => y.yakuman));
+  const { x, hc, cc } = sctx(g);
+  const out: Row[] = YAKU.map((y) => {
+    const fn = SH[y.name];
+    const e = y.luck || !fn ? { need: INF, prob: 0 } : estimate(fn, x, hc, cc, unseen, turnsLeft);
+    return { y, e, note: y.fit(c).note };
+  });
+  cache = { key, rows: out };
+  return out;
+}
+
+/**
+ * 役確認の中身。
+ * unseen: 自分から見えていない枚数、open: 説明を開いている役、closable: 閉じるボタンを出すか
+ */
+export function yakuGuideHtml(g: Game, unseen: number[], open: Set<string>, closable: boolean): string {
+  const list = rows(g, unseen);
+  // 成立する確率の高い順。同じなら「あと何枚」の少ない順、それも同じなら点数の低い順
+  const possible = list.filter((r) => !r.y.luck && Number.isFinite(r.e.need))
+    .sort((a, b) => (b.e.prob - a.e.prob) || (a.e.need - b.e.need) || (a.y.han - b.y.han));
+  const luck = list.filter((r) => r.y.luck);
+  const impossible = list.filter((r) => !r.y.luck && !Number.isFinite(r.e.need));
   const wind = WIND_NAMES[g.seatWind(0) - 27];
+  const k = g.rules.kuitan;
   return `
     <div class="yk-head">
       <h2>${furigana('役')}確認</h2>
-      <button class="yk-close" data-act="yaku-close" aria-label="閉じる">×</button>
+      ${closable ? '<button class="yk-close" data-act="yaku-close" aria-label="閉じる">×</button>' : ''}
     </div>
-    <p class="yk-lead">今のあなたの手牌で<b>狙いやすい順</b>に並んでいます。役をタップすると完成形の例が出ます。<br>
-      <span class="fit-great">◎狙える</span>　<span class="fit-good">○あと少し</span>　<span class="fit-far">△遠い</span>　<span class="fit-no">×今は無理</span>
-      <span class="muted">（あなたの自風：${wind}）</span></p>
-    <div class="yk-list">${normal.map((y) => itemHtml(y, c)).join('')}</div>
-    <details class="yk-yakuman">
-      <summary>${furigana('役満')}（とても高い特別な役）を見る</summary>
-      <div class="yk-list">${yakuman.map((y) => itemHtml(y, c)).join('')}</div>
-    </details>`;
+    <p class="yk-lead">今のあなたの手牌で<b>成立しやすい順</b>です。役をタップすると説明と完成形の例が出ます。<br>
+      <span class="fit-great">◎狙える</span>　<span class="fit-good">○あと少し</span>　<span class="fit-far">△遠い</span>　<span class="fit-luck">☆偶然</span>
+      <span class="muted">（自風：${wind}）</span></p>
+    <div class="yk-list">${possible.map((r) => itemHtml(r, open, k)).join('')}${luck.map((r) => itemHtml(r, open, k)).join('')}</div>
+    ${impossible.length ? `
+    <details class="yk-impossible" data-yaku="__impossible" ${open.has('__impossible') ? 'open' : ''}>
+      <summary>この局ではもう成立しない${furigana('役')}（${impossible.length}）</summary>
+      <div class="yk-list">${impossible.map((r) => itemHtml(r, open, k)).join('')}</div>
+    </details>` : ''}`;
 }

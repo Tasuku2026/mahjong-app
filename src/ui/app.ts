@@ -99,9 +99,10 @@ export class App implements GameUI {
   private hintCache: { pending: Pending; advice: Advice } | null = null;
   /** この対局での自分の成績 */
   private tally: RoundTally = emptyTally();
-  /** 役確認ウインドウを開いているか（開いている間は対局を一時停止） */
+  /** 役確認ウインドウを開いているか（画面が狭いときのみ。対局は止めない） */
   private yakuOpen = false;
-  private resumeWaiters: (() => void)[] = [];
+  /** 役確認で説明を開いている役（再描画しても開いたままにする） */
+  private yakuOpenItems = new Set<string>();
   /** 対局ごとに増える番号（途中でやめた対局を見分ける） */
   private gameToken = 0;
   /** アニメーション済みの捨て牌・ツモ牌 */
@@ -116,6 +117,16 @@ export class App implements GameUI {
     setSoundEnabled(this.settings.sound);
     // ヘルプは root の外（body 直下）に出すため document で受ける
     document.addEventListener('click', (e) => this.onClick(e));
+    // 役確認で開いた説明は、再描画しても開いたままにする
+    document.addEventListener('toggle', (e) => {
+      const d = e.target as HTMLElement;
+      const name = d.dataset?.yaku;
+      if (!name) return;
+      if ((d as HTMLDetailsElement).open) this.yakuOpenItems.add(name);
+      else this.yakuOpenItems.delete(name);
+    }, true);
+    // 画面の幅で、役確認を卓の横に出すかが変わる
+    window.addEventListener('resize', () => this.render());
   }
 
   // ------------------------------------------------------------------
@@ -278,15 +289,8 @@ export class App implements GameUI {
     this.render();
   }
 
-  async delay(ms: number): Promise<void> {
-    await sleep(ms * this.settings.speed);
-    await this.whilePaused();
-  }
-
-  /** 役確認を開いている間は、ここで待つ */
-  private whilePaused(): Promise<void> {
-    if (!this.yakuOpen) return Promise.resolve();
-    return new Promise((r) => this.resumeWaiters.push(r));
+  delay(ms: number): Promise<void> {
+    return sleep(ms * this.settings.speed);
   }
 
   async announce(seat: number, text: string): Promise<void> {
@@ -296,7 +300,6 @@ export class App implements GameUI {
     this.bubbles.set(seat, text);
     this.render();
     await sleep(Math.max(500, 900 * this.settings.speed));
-    await this.whilePaused();
     this.bubbles.delete(seat);
     this.render();
   }
@@ -364,14 +367,12 @@ export class App implements GameUI {
         this.yakuOpen = true;
         this.render();
         return;
-      case 'yaku-close': {
+      case 'yaku-close':
+        // 背景（ウインドウの外）か × ボタン
+        if (el.classList.contains('yaku-backdrop') && e.target !== el) return;
         this.yakuOpen = false;
-        const waiters = this.resumeWaiters;
-        this.resumeWaiters = [];
         this.render();
-        waiters.forEach((r) => r());
         return;
-      }
       case 'quit':
         document.querySelector('.confirm-overlay')?.remove();
         document.body.insertAdjacentHTML('beforeend', `
@@ -397,7 +398,6 @@ export class App implements GameUI {
         this.overlay = null;
         this.bubbles.clear();
         this.yakuOpen = false;
-        this.resumeWaiters = [];
         trackEvent('game-quit', '途中終了');
         this.showStart();
         return;
@@ -518,6 +518,9 @@ export class App implements GameUI {
     const red = (t: Tile) => g.isRed(t);
     // 再描画で補助パネルのスクロール位置が戻らないようにする
     const scroll = this.root.querySelector('.assist')?.scrollTop ?? 0;
+    const yakuScroll = this.root.querySelector('.yaku-panel, .yaku-side')?.scrollTop ?? 0;
+    // 画面が広ければ、役確認を卓の横に常に表示する
+    const side = this.yakuSideMode();
     // 新しい捨て牌・ツモ牌だけアニメーションさせる（再描画のたびに動かないように）
     const ld = g.lastDiscard;
     const dKey = ld ? `${g.roundName}-${g.honba}-${ld.seat}-${ld.index}` : '';
@@ -529,7 +532,7 @@ export class App implements GameUI {
     this.animatedDraw = drawn;
     this.root.innerHTML = `
       <div class="game">
-        <div class="board-wrap ${SPACE_DEBUG ? 'space-debug' : ''}"><div class="board">
+        <div class="board-wrap ${SPACE_DEBUG ? 'space-debug' : ''} ${side ? 'with-side' : ''}"><div class="board">
           ${this.centerHtml(g)}
           ${[0, 1, 2, 3].map((s) => this.seatHtml(g, s)).join('')}
           ${this.soundButtonHtml()}
@@ -539,9 +542,10 @@ export class App implements GameUI {
           ${this.toolbarHtml()}
           ${SPACE_DEBUG ? centerFreeHtml() : ''}
           <div class="controls">${this.controlsHtml(g)}</div>
-          <button class="yaku-btn" data-act="yaku-open">${furigana('役')}確認</button>
-          ${this.yakuOpen ? `<div class="yaku-panel">${yakuGuideHtml(g)}</div>` : ''}
-        </div></div>
+          ${side ? '' : `<div class="yaku-corner"><button class="yaku-btn" data-act="yaku-open">${furigana('役')}確認</button>${helpButton('yaku')}</div>`}
+          ${!side && this.yakuOpen ? `<div class="yaku-panel">${this.yakuHtml(g, true)}</div>` : ''}
+        </div>${side ? `<aside class="yaku-side">${this.yakuHtml(g, false)}</aside>` : ''}</div>
+        ${!side && this.yakuOpen ? '<div class="yaku-backdrop" data-act="yaku-close"></div>' : ''}
         <div class="me">
           <div class="my-melds">${g.players[0].melds.map((m) => meldHtml(m, 0, red)).join('')}</div>
           <div class="my-hand has-badges">${this.myHandHtml(g)}</div>
@@ -551,6 +555,8 @@ export class App implements GameUI {
       </div>`;
     const assist = this.root.querySelector('.assist');
     if (assist) assist.scrollTop = scroll;
+    const yk = this.root.querySelector('.yaku-panel, .yaku-side');
+    if (yk) yk.scrollTop = yakuScroll;
     if (SPACE_DEBUG) {
       paintBoardFree(this.root);
       paintLowerFree(this.root);
@@ -614,18 +620,27 @@ export class App implements GameUI {
   private toolbarHtml(): string {
     const a = this.settings.assist;
     const chip = (key: string, label: string, on: boolean) =>
-      `<button class="chip ${on ? 'on' : ''}" data-act="toggle" data-key="${key}" aria-pressed="${on}">${label}</button>`;
+      `<div class="tool-row"><button class="chip ${on ? 'on' : ''}" data-act="toggle" data-key="${key}" aria-pressed="${on}">${label}</button>${helpButton(key)}</div>`;
     const dangerLabel = { off: '危険度', est: '危険度：推定', true: '危険度：透視' }[a.danger];
-    // 卓の右下の空いている角に縦1列で置く。？は右側のCPUの手牌と同じ列の一番下
+    // 卓の右下の空いている角に縦1列で置く。それぞれの右に説明の？
     return `
       <div class="tools">
         ${chip('hint', 'ヒント', a.hint)}
         ${chip('outlook', furigana('役') + '・期待値', a.outlook)}
-        <button class="chip ${a.danger !== 'off' ? 'on' : ''} ${a.danger === 'true' ? 'cheat' : ''}" data-act="danger">${dangerLabel}</button>
+        <div class="tool-row"><button class="chip ${a.danger !== 'off' ? 'on' : ''} ${a.danger === 'true' ? 'cheat' : ''}" data-act="danger">${dangerLabel}</button>${helpButton('danger')}</div>
         ${chip('remain', '残り枚数', a.remain)}
         ${chip('open', 'カンニング', a.open)}
-      </div>
-      <div class="tools-help">${helpButton('assist')}</div>`;
+      </div>`;
+  }
+
+  /** 画面が広く、卓の横に役確認を置く余裕があるか */
+  private yakuSideMode(): boolean {
+    const board = Math.min(window.innerWidth, window.innerHeight - 200, 640);
+    return window.innerWidth >= board + 340;
+  }
+
+  private yakuHtml(g: Game, closable: boolean): string {
+    return yakuGuideHtml(g, remainCounts(g, 0, this.settings.assist.open), this.yakuOpenItems, closable);
   }
 
   /** 卓の左上の、効果音のオン・オフ */

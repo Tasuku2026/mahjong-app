@@ -786,3 +786,53 @@ button.danger-solid { background: #b8433c; border-color: #b8433c; }
 .yk-item.fit-no .yk-name, .yk-item.fit-none .yk-name { opacity: .7; }
 .yk-yakuman { margin-top: 10px; }
 .yk-yakuman > summary { cursor: pointer; color: var(--accent); font-weight: 700; padding: 6px 0; }
+
+/* 補助ボタン: それぞれの右に？ */
+.tool-row { display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
+.tools .tool-row button.help {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  font-size: .62rem;
+  background: rgba(0, 0, 0, .28);
+}
+.tools button.chip { font-size: .68rem; }
+.tools button.chip[data-act="danger"] { min-width: calc(6em + 10px); }
+
+/* 卓の左下の隅: 役確認ボタンと？ */
+.yaku-corner {
+  position: absolute;
+  left: 1%;
+  bottom: 1%;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  z-index: 6;
+}
+.yaku-corner .yaku-btn { position: static; }
+.yaku-corner button.help { width: 18px; height: 18px; margin: 0; font-size: .62rem; background: rgba(0, 0, 0, .28); }
+/* 操作ボタンは役確認ボタンより上に出す */
+.board .controls .ctl-buttons { bottom: 8.5%; }
+
+/* 画面が狭いとき: ウインドウの外をタップで閉じる */
+.yaku-backdrop { position: fixed; inset: 0; z-index: 25; background: rgba(0, 0, 0, .25); }
+
+/* 画面が広いとき: 卓の横に常に表示 */
+.board-wrap.with-side { gap: 12px; padding: 0 12px; }
+.yaku-side {
+  flex: none;
+  width: 340px;
+  height: var(--S);
+  overflow-y: auto;
+  background: var(--panel);
+  border-radius: 12px;
+  padding: 10px 12px 14px;
+  font-size: .84rem;
+  --w: 18px;
+}
+.yk-stat { color: var(--muted); }
+.yk-stat b { color: var(--accent); }
+.yk-stat.done { color: var(--accent); font-weight: 700; }
+.fit-luck .yk-mark, span.fit-luck { color: #b9a6e8; }
+.yk-impossible { margin-top: 10px; }
+.yk-impossible > summary { cursor: pointer; color: var(--muted); font-weight: 700; padding: 6px 0; }

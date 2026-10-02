@@ -105,3 +105,26 @@ describe('containsWin', () => {
     expect(containsWin(toCounts(parseTiles('123m456p789s1z2z3z')), 1)).toBe(false);
   });
 });
+
+describe('役ごとの向聴数', () => {
+  it('条件付きで和了形を判定できる', async () => {
+    const { restrictedShanten, shantenWithRequired, none } = await import('../src/ai/yakuShanten');
+    const { isYaochu, isHonor, suitOf } = await import('../src/core/tiles');
+    const c = (s: string) => toCounts(parseTiles(s));
+    // 断幺九: 2〜8だけで和了形
+    expect(restrictedShanten(c('234m567p345s678s55p'), { meldCount: 0, kindOk: (k) => !isYaochu(k) })).toBe(-1);
+    // 1が入っていると断幺九としてはテンパイ止まり
+    expect(restrictedShanten(c('123m567p345s678s55p'), { meldCount: 0, kindOk: (k) => !isYaochu(k) })).toBe(0);
+    // 混一色: 萬子と字牌だけ
+    expect(restrictedShanten(c('123456m789m111z22z'), { meldCount: 0, kindOk: (k) => isHonor(k) || suitOf(k) === 0 })).toBe(-1);
+    // 対々和: 順子なし
+    expect(restrictedShanten(c('111m555p999s222z33z'), { meldCount: 0, shuntsuOk: none })).toBe(-1);
+    expect(restrictedShanten(c('123m555p999s222z33z'), { meldCount: 0, shuntsuOk: none })).toBeGreaterThanOrEqual(0);
+    // 三色同順: 345 を3色そろえた和了形
+    const req = new Map<number, number>();
+    for (const b of [0, 9, 18]) for (const d of [2, 3, 4]) req.set(b + d, 1);
+    expect(shantenWithRequired(c('345m345p345s789m11z'), req, 3, false, { meldCount: 0 })).toBe(-1);
+    // 1枚足りなければテンパイ
+    expect(shantenWithRequired(c('345m345p34s789m11z1s'), req, 3, false, { meldCount: 0 })).toBe(0);
+  });
+});
