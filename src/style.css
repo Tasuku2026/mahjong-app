@@ -1167,3 +1167,110 @@ button.danger-solid { background: #b8433c; border-color: #b8433c; }
 .lv-item:hover { background: var(--panel-2); }
 .lv-item.cur { background: rgba(242, 179, 61, .18); box-shadow: inset 0 0 0 1px var(--accent); }
 .lv-item .lv-ic { width: 32px; height: 32px; }
+
+/* ---------------- まーじゃん教室 ---------------- */
+.lesson-banner {
+  width: 100%;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  margin-bottom: 14px;
+  text-align: left;
+  background: linear-gradient(120deg, #3a6b4f, #2a5240);
+  border: 1px solid #f2b33d;
+  border-radius: 14px;
+}
+.lesson-banner .chara-svg { width: 46px; height: 46px; flex: none; }
+.lesson-banner b { display: block; font-size: 1.05rem; color: #ffe08a; }
+.lesson-banner small { color: var(--text); font-weight: 400; font-size: .8rem; }
+
+.lesson-menu .ls-hero { display: flex; align-items: center; gap: 10px; margin: 6px 0 12px; }
+.lesson-menu .ls-hero .chara-svg { width: 64px; height: 64px; flex: none; }
+.lesson-menu .ls-hero p { margin: 0; color: var(--muted); line-height: 1.7; font-size: .9rem; }
+.ls-graduated { color: var(--accent); font-weight: 800; text-align: center; }
+.ls-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.ls-item {
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  text-align: left;
+  background: var(--panel);
+  border-radius: 12px;
+}
+.ls-item.done { border-color: #6c8f4e; }
+.ls-no { width: 34px; height: 34px; flex: none; border-radius: 50%; background: var(--panel-2); display: flex; align-items: center; justify-content: center; font-weight: 800; color: var(--accent); font-size: .85rem; }
+.ls-text { flex: 1; }
+.ls-text b { display: block; }
+.ls-text small { color: var(--muted); font-weight: 400; font-size: .78rem; }
+.stamp-ok { display: inline-block; padding: 2px 6px; border: 2px solid #e2483d; color: #e2483d; border-radius: 6px; font-weight: 900; transform: rotate(-10deg); }
+
+.lesson { max-width: 560px; margin: 0 auto; padding: 12px 14px 30px; min-height: 100dvh; display: flex; flex-direction: column; }
+.ls-top { display: flex; align-items: center; gap: 10px; }
+.ls-top button { min-height: 36px; padding: 4px 10px; font-size: .85rem; }
+.ls-title { font-weight: 800; font-size: 1.1rem; }
+.ls-title small { display: block; color: var(--muted); font-weight: 400; font-size: .75rem; }
+.ls-dots { display: flex; gap: 4px; margin: 10px 0; }
+.ls-dots i { flex: 1; height: 5px; border-radius: 3px; background: var(--panel-2); }
+.ls-dots i.past { background: #6c8f4e; }
+.ls-dots i.now { background: var(--accent); }
+.ls-stage {
+  --w: min(calc((100vw - 60px) / 14.5), 36px);
+  min-height: 90px;
+  background: radial-gradient(circle at 50% 40%, #17734d, var(--felt) 70%);
+  border-radius: 14px;
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.ls-stage:empty { display: none; }
+.ls-tiles { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; row-gap: 6px; }
+.ls-tiles.small { --w: min(calc((100vw - 60px) / 16), 26px); }
+.ls-tiles .tile.tap { cursor: pointer; transition: transform .1s; }
+.ls-tiles .tile.tap:hover { transform: translateY(-3px); }
+.ls-tiles .tile.sel { transform: translateY(-25%); box-shadow: 0 0 0 2px var(--accent); }
+.ls-tiles .tile.right { box-shadow: 0 0 0 3px #63d38f; }
+.ls-tiles .tile.glow { box-shadow: 0 0 0 2px var(--accent), 0 0 12px rgba(242, 179, 61, .8); animation: stick-glow 1s ease-in-out infinite alternate; }
+.ls-tiles .tile.dim { filter: brightness(.75); }
+.ls-tiles .ls-gap { width: calc(var(--w) * .4); }
+.ls-label { color: #d8eadf; font-size: .78rem; align-self: flex-start; }
+.ls-groups { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; --w: min(calc((100vw - 60px) / 17), 28px); }
+.ls-group { display: inline-flex; padding: 3px; border-radius: 6px; background: rgba(255, 255, 255, .12); }
+.ls-options { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 4px; }
+.ls-opt { min-height: 44px; padding: 6px 14px; background: var(--panel); --w: 26px; }
+.ls-opt.right { box-shadow: 0 0 0 2px #63d38f; }
+.ls-opt-tiles { display: inline-flex; gap: 1px; vertical-align: middle; }
+.ls-talk { display: flex; align-items: flex-start; gap: 8px; margin-top: 12px; }
+.ls-talk > .chara-svg { width: 54px; height: 54px; flex: none; }
+.ls-bubble { position: relative; flex: 1; background: #fffdf6; color: #3b2f2a; border-radius: 14px; padding: 8px 12px; }
+.ls-bubble::before { content: ""; position: absolute; left: -7px; top: 18px; border: 7px solid transparent; border-right-color: #fffdf6; border-left: 0; }
+.ls-bubble b { font-size: .8rem; color: #8a6a3a; }
+.ls-bubble p { margin: 2px 0 0; line-height: 1.75; font-size: .95rem; font-weight: 600; }
+.ls-bubble ruby rt { color: #8a7a6a; }
+.ls-p .ls-bubble { background: #fff7c9; }
+.ls-p .ls-bubble::before { border-right-color: #fff7c9; }
+.ls-feedback { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 8px 10px; border-radius: 12px; animation: dialog-in .2s ease-out; }
+.ls-feedback .chara-svg { width: 40px; height: 40px; flex: none; }
+.ls-feedback p { margin: 0; line-height: 1.7; font-size: .9rem; }
+.ls-feedback.ok { background: rgba(99, 211, 143, .16); border: 1px solid #63d38f; }
+.ls-feedback.ng { background: rgba(255, 123, 114, .14); border: 1px solid #ff7b72; }
+.ls-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: auto; padding-top: 14px; }
+.ls-actions button { min-width: 96px; }
+.ls-actions button:disabled { opacity: .4; }
+.ls-actions button.big { width: 100%; }
+.ls-complete { align-items: center; text-align: center; justify-content: center; }
+.ls-complete .ls-talk { text-align: left; width: 100%; }
+.ls-stamp-big { width: 92px; height: 92px; border: 5px double #e2483d; color: #e2483d; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2.4rem; font-weight: 900; transform: rotate(-12deg); animation: stamp-in .5s cubic-bezier(.2, .9, .3, 1.3) both; margin-top: 40px; }
+.intro-dialog { max-width: 360px; text-align: center; }
+.intro-dialog .intro-face { width: 72px; height: 72px; margin: 0 auto; }
+.intro-dialog p { line-height: 1.7; color: var(--muted); }
+.intro-dialog .btns { display: flex; flex-direction: column; gap: 8px; }
+.graduate-banner { display: flex; gap: 10px; align-items: center; padding: 10px; margin-bottom: 10px; border-radius: 12px; background: linear-gradient(120deg, rgba(242, 179, 61, .25), rgba(99, 211, 143, .2)); border: 1px solid var(--accent); }
+.graduate-banner .chara-svg { width: 52px; height: 52px; flex: none; }
+.graduate-banner p { margin: 4px 0 0; font-size: .85rem; line-height: 1.6; }

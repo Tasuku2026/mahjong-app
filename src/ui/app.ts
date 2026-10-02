@@ -8,6 +8,7 @@ import { tileHtml, meldHtml } from './tileView';
 import { helpButton, helpDialogHtml } from './help';
 import { T, furigana, kindRuby, roundRuby, yakuRuby } from './terms';
 import { CHARAS, Chara, Expr, Talk, charaFor, pickLine } from './characters';
+import { LessonUI, loadProgress, saveProgress } from './lessons';
 import { aimDiscard, yakuGuideHtml, yakuNeed, yakuPopHtml } from './yakuGuide';
 import { AssistSettings, DEFAULT_ASSIST, DangerMode, Advice, adviseCall, adviseTurn, discardInfo, handDanger, remainCounts } from './assist';
 import { outlook, Outlook } from '../ai/value';
@@ -104,6 +105,10 @@ export class App implements GameUI {
   private tally: RoundTally = emptyTally();
   /** 役ナビウインドウを開いているか（画面が狭いときのみ。対局は止めない） */
   private yakuOpen = false;
+  /** まーじゃん教室 */
+  private lessons: LessonUI;
+  /** 卒業対局中か（1回和了ったら卒業） */
+  private lessonGame = false;
   /** キャラクターの吹き出しと表情（席ごと） */
   private speech = new Map<number, { text: string; key: number }>();
   private faces = new Map<number, { expr: Expr; key: number }>();
@@ -123,6 +128,10 @@ export class App implements GameUI {
 
   constructor(root: HTMLElement) {
     this.root = root;
+    this.lessons = new LessonUI(root, {
+      startGraduation: () => { void this.startGraduation(); },
+      backToTop: () => this.showStart(),
+    });
     this.settings = loadSettings();
     setSoundEnabled(this.settings.sound);
     // ヘルプは root の外（body 直下）に出すため document で受ける
@@ -155,6 +164,8 @@ export class App implements GameUI {
 
   showStart(): void {
     this.game = null;
+    this.lessonGame = false;
+    this.showIntroOnce();
     const s = this.settings;
     // アイコン付きの選択欄（ふつうのドロップダウンには絵を入れられないので自作）
     const levelSelect = (i: number, label: string) => `
@@ -168,6 +179,7 @@ export class App implements GameUI {
       <div class="start">
         <h1>ひとり麻雀</h1>
         <p class="sub">CPU 3人と対局する4人打ちリーチ麻雀</p>
+        <button class="lesson-banner" data-act="lesson">${charaFor(9).face('happy')}<span><b>まーじゃん教室</b><small>ルールを知らない人はここから！${loadProgress().graduated ? '（卒業ずみ）' : ''}</small></span></button>
         <div class="start-grid">
         <section class="card">
           <h2>対局</h2>
@@ -204,6 +216,34 @@ export class App implements GameUI {
         <button class="big secondary" data-act="charas">キャラ図鑑</button>
         ${analyticsEnabled() ? '<p class="privacy">利用状況の把握のため、アクセス解析（GoatCounter）を使用しています。Cookieや個人を特定する情報は使用しません。</p>' : ''}
       </div>`;
+  }
+
+  /** 初めて開いた人に一度だけ、教室を案内する */
+  private showIntroOnce(): void {
+    const p = loadProgress();
+    if (p.introShown) return;
+    let firstTime = true;
+    try {
+      firstTime = !localStorage.getItem(SETTINGS_KEY);
+    } catch {
+      firstTime = true;
+    }
+    p.introShown = true;
+    saveProgress(p);
+    if (!firstTime) return;
+    const h = charaFor(9);
+    document.body.insertAdjacentHTML('beforeend', `
+      <div class="overlay intro-overlay">
+        <div class="dialog intro-dialog">
+          <div class="intro-face">${h.face('happy')}</div>
+          <h2>はじめまして！</h2>
+          <p>わしは、ほー博士じゃ。麻雀のルールを知らなくても大丈夫。<b>まーじゃん教室</b>で、ゼロから楽しく覚えられるぞ。</p>
+          <div class="btns">
+            <button class="primary" data-act="lesson">教室へ行く</button>
+            <button data-act="intro-later">もう知っているので、あとで</button>
+          </div>
+        </div>
+      </div>`);
   }
 
   // ------------------------------------------------------------------
@@ -382,8 +422,19 @@ export class App implements GameUI {
     saveSettings(s);
   }
 
-  async startGame(): Promise<void> {
-    const s = this.settings;
+  /** 卒業対局: ぴよ3人と東風戦。おすすめ・見込み・役ナビをオン */
+  private async startGraduation(): Promise<void> {
+    this.overlay = null;
+    this.settings.assist.hint = true;
+    this.settings.assist.outlook = true;
+    this.settings.yakuSide = true;
+    saveSettings(this.settings);
+    await this.startGame({ levels: [1, 1, 1], rules: { ...this.settings.rules, gameLength: 'tonpu', undo: true } }, true);
+  }
+
+  async startGame(override?: Partial<Pick<Settings, 'levels' | 'rules'>>, lesson = false): Promise<void> {
+    const s = { ...this.settings, ...override };
+    this.lessonGame = lesson;
     const token = ++this.gameToken;
     const live = () => token === this.gameToken;
     // この対局専用の窓口。終了ボタンでやめた後は、古い対局の処理がここで止まる
@@ -478,7 +529,16 @@ export class App implements GameUI {
     if (me.melds.some((m) => m.type !== 'ankan')) t.calls++;
     if (r.type !== 'win') sfx.draw();
     return new Promise((resolve) => {
-      this.overlay = { html: this.resultHtml(g, r), resolve };
+      let banner = '';
+      if (this.lessonGame && myWin) {
+        const p = loadProgress();
+        if (!p.graduated) {
+          p.graduated = true;
+          saveProgress(p);
+          banner = `<div class="graduate-banner">${charaFor(9).face('happy')}<div><b>🎓 卒業おめでとう！</b><p>初めての和了じゃ！ これで、まーじゃん教室は卒業じゃ。このまま対局を続けてもいいし、トップ画面で好きな相手を選んで遊ぶのもよいぞ。</p></div></div>`;
+        }
+      }
+      this.overlay = { html: banner + this.resultHtml(g, r), resolve };
       this.render();
       if (r.type === 'win' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         this.countUp();
@@ -532,6 +592,10 @@ export class App implements GameUI {
     const el = (e.target as HTMLElement).closest<HTMLElement>('[data-act]');
     if (!el) return;
     const act = el.dataset.act!;
+    if (act.startsWith('ls-')) {
+      this.lessons.handle(act, el);
+      return;
+    }
     const pend = this.pending;
     switch (act) {
       case 'toggle': {
@@ -680,6 +744,16 @@ export class App implements GameUI {
       case 'title':
         this.overlay = null;
         this.showStart();
+        return;
+      case 'lesson':
+        this.overlay = null;
+        document.querySelector('.intro-overlay')?.remove();
+        this.lessonGame = false;
+        this.game = null;
+        this.lessons.showMenu();
+        return;
+      case 'intro-later':
+        document.querySelector('.intro-overlay')?.remove();
         return;
       case 'restart':
         this.overlay = null;
@@ -1228,7 +1302,7 @@ export class App implements GameUI {
     saveRecord({
       date: new Date().toISOString(),
       length: g.rules.gameLength,
-      levels: [...this.settings.levels],
+      levels: g.players.slice(1).map((p) => p.level),
       rank: mine.rank,
       score: mine.score,
       point: mine.point,
@@ -1247,8 +1321,9 @@ export class App implements GameUI {
             <table class="scores">${rows}</table>
             ${this.finalCommentsHtml(g, st)}
             <div class="btns">
-              <button class="primary" data-act="restart">同じ設定でもう一度</button>
-              <button data-act="title">設定に戻る</button>
+              ${this.lessonGame
+    ? `${loadProgress().graduated ? '' : '<button class="primary" data-act="ls-graduate">もう一度卒業対局</button>'}<button class="${loadProgress().graduated ? 'primary' : ''}" data-act="lesson">教室に戻る</button><button data-act="title">トップ画面へ</button>`
+    : '<button class="primary" data-act="restart">同じ設定でもう一度</button><button data-act="title">設定に戻る</button>'}
             </div>
           </div>`,
         resolve,
