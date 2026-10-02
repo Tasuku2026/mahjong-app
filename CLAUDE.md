@@ -20,7 +20,7 @@ npx vite-node scripts/strength.ts 40 1,4,7,10   # CPUレベル別の成績比較
 
 - `src/core/` ルールエンジン: `tiles.ts`（牌ID 0..135 / 種類 0..33）、`shanten.ts`（向聴数・待ち・和了形判定）、`agari.ts`、`yaku.ts`（役・符・点数）、`game.ts`（対局進行。Agent/GameUI インターフェース経由で人間とCPUを同じ扱い）
 - `src/ai/` CPU: `cpu.ts`（レベル1〜10 + 鬼(11)・神(12)。`decideTurn`/`decideCall` はヒント表示でも使う）、`danger.ts`（危険度）、`value.ts`（打点・和了率・期待値）、`yakuShanten.ts`（役ごとの向聴数）
-- `src/ui/` 画面: `app.ts`（描画は毎回 innerHTML で作り直す方式）、`tileArt.ts`（牌のSVG図柄）、`assist.ts`（補助機能）、`help.ts`（？ボタンの説明文）、`yakuGuide.ts`（役ナビ）、`terms.ts`（ふりがな）、`characters.ts`（CPUキャラ12人の絵・セリフ）、`stats.ts`（戦績・localStorage）、`sound.ts`（WebAudio効果音）、`analytics.ts`（GoatCounter）
+- `src/ui/` 画面: `app.ts`（描画は毎回 innerHTML で作り直す方式）、`tileArt.ts`（牌のSVG図柄）、`assist.ts`（補助機能）、`help.ts`（？ボタンの説明文）、`yakuGuide.ts`（役ナビ）、`terms.ts`（ふりがな）、`characters.ts`（CPUキャラ12人のプロフィール・セリフ）、`charaArt.ts`（キャラの絵: ゆるくて丸いオリジナル絵柄。既存キャラのまねはしない）、`stats.ts`（戦績・localStorage）、`sound.ts`（WebAudio効果音）、`analytics.ts`（GoatCounter）
 
 ## 決まりごと
 
