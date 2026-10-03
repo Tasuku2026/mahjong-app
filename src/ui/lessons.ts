@@ -149,8 +149,16 @@ export const LESSONS: Lesson[] = [
     steps: [
       { t: 'talk', who: 'h', text: '自分の捨てた牌で、ほかの人にロンされることを放銃（振り込み）という。点数を払うのは、捨てたあなただけじゃ。' },
       { t: 'talk', who: 'p', face: 'sad', text: 'こわいぴよ…どうすればいいぴよ？' },
-      { t: 'talk', who: 'h', text: '相手がリーチしたら、その相手が自分で捨てた牌は、ぜったいにロンされない。これを現物というんじゃ。' },
-      { t: 'pick', text: 'リーチした人の捨て牌を見て、あなたの手牌から安全な牌をタップしよう。', shown: { label: 'リーチした人の捨て牌', tiles: '2m5p9s1z7m' }, tiles: '8m5p3s4z', answer: '5p', explain: '正解！5筒はリーチした人が自分で捨てておるから、ぜったいに安全じゃ。' },
+      { t: 'talk', who: 'h', text: '相手がリーチしたら、その相手が自分で捨てた牌は、その相手にはぜったいにロンされない。これを現物というんじゃ。' },
+      { t: 'talk', who: 'p', face: 'surprised', text: 'どうして「ぜったい」なのぴよ？' },
+      { t: 'talk', who: 'h', text: '麻雀には「自分が捨てた牌では、ロンできない」という決まりがあるんじゃ。だから、リーチした人の捨て牌と同じ牌なら安全なんじゃよ。' },
+      { t: 'talk', who: 'h', tiles: '2m9s*1z5p7m', text: '捨て牌の中で横向きになっているのが、リーチを宣言した牌じゃ。その前に捨てた牌も、後に捨てた牌も、どれも現物じゃよ。' },
+      { t: 'pick', text: 'リーチした人の捨て牌を見て、あなたの手牌から安全な牌をタップしよう。', shown: { label: 'リーチした人の捨て牌', tiles: '2m9s*1z5p7m' }, tiles: '8m5p3s4z', answer: '5p', explain: '正解！5筒はリーチの後に捨てた牌じゃが、リーチした人が自分で捨てた牌だから安全じゃ。' },
+      { t: 'talk', who: 'h', text: 'ただし、現物が安全なのは、リーチした人に対してだけじゃ。ほかの人にはロンされることもあるから、気をつけるんじゃぞ。' },
+      { t: 'talk', who: 'h', text: 'もうひとつ大事なコツがある。リーチの後に、ほかの人が捨てた牌を、リーチした人がロンしなかったら、その牌も安全になるんじゃ。' },
+      { t: 'talk', who: 'p', face: 'surprised', text: 'どうしてぴよ？' },
+      { t: 'talk', who: 'h', text: 'リーチした人は手を変えられないから、待ちも変わらない。そして、リーチの後に一度見のがした牌では、もうロンできない決まりなんじゃ。' },
+      { t: 'pick', text: 'リーチの後、ほかの人が6索を捨てたが、リーチした人はロンしなかった。あなたの手牌から安全な牌をタップしよう。', shown: { label: 'リーチの後、ほかの人が捨てた牌（ロンされなかった）', tiles: '6s' }, tiles: '8m3p6s4z', answer: '6s', explain: '正解！リーチした人が見のがした6索は、もうロンされないから安全じゃ。' },
       { t: 'talk', who: 'h', text: '対局中は「危険牌」ボタンで、どの牌が危ないかの目安が見られる。練習に使うとよいぞ。' },
     ],
   },
@@ -235,9 +243,13 @@ export function saveProgress(p: LessonProgress): void {
 // 画面
 // ---------------------------------------------------------------
 
-/** 牌の列。空白で区切ると、組ごとに少しすき間を空けて並べる（例: '123m 456p 55z'） */
+/**
+ * 牌の列。空白で区切ると、組ごとに少しすき間を空けて並べる（例: '123m 456p 55z'）
+ * 「*」の直後の牌は横向き（リーチを宣言した牌。例: '2m9s*1z5p'）
+ */
 const tilesHtml = (s: string, cls = '') => s.trim().split(/\s+/)
-  .map((part) => parseTiles(part).map((t) => tileHtml(t, { red: isRedTile(t), classes: cls ? [cls] : [] })).join(''))
+  .map((part) => part.split('*').map((seg, i) => parseTiles(seg)
+    .map((t, j) => tileHtml(t, { red: isRedTile(t), sideways: i > 0 && j === 0, classes: cls ? [cls] : [] })).join('')).join(''))
   .join('<span class="ls-sep"></span>');
 
 export interface LessonHooks {
