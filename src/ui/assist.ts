@@ -59,14 +59,14 @@ export interface DiscardInfo {
   outlook: Outlook;
 }
 
-/** 打牌候補ごとの情報 */
-export function discardInfo(g: Game, tile: Tile, seat = 0): DiscardInfo {
+/** 打牌候補ごとの情報（openHands: カンニング中は相手の手牌も見えているものとして数える） */
+export function discardInfo(g: Game, tile: Tile, seat = 0, openHands = false): DiscardInfo {
   const p = g.players[seat];
-  const unseen = remainCounts(g, seat);
+  const unseen = remainCounts(g, seat, openHands);
   const e = evaluateDiscards(p.hand, p.melds.length, unseen, [tile])[0];
   const hand13 = p.hand.slice();
   hand13.splice(hand13.indexOf(tile), 1);
-  return { tile, shanten: e.shanten, ukeire: e.ukeire, outlook: outlook(g, seat, hand13) };
+  return { tile, shanten: e.shanten, ukeire: e.ukeire, outlook: outlook(g, seat, hand13, unseen) };
 }
 
 const hintAgent = new CpuAgent(10);

@@ -186,10 +186,11 @@ function yakuProspects(g: Game, seat: number, hand: Tile[]): { names: string[]; 
 /**
  * 手の見通し。hand は 13枚形 または 14枚形（ツモ直後）。
  * 14枚形の場合は最も良い打牌をした後を想定する。
+ * unseen: 見えていない牌の枚数（省略時は自分から見える情報だけで数える）
  */
-export function outlook(g: Game, seat: number, hand: Tile[] = g.players[seat].hand): Outlook {
+export function outlook(g: Game, seat: number, hand: Tile[] = g.players[seat].hand,
+  unseen: number[] = g.visibleCounts(seat).map((v) => Math.max(0, 4 - v))): Outlook {
   const p = g.players[seat];
-  const unseen = g.visibleCounts(seat).map((v) => Math.max(0, 4 - v));
   const counts = toCounts(hand);
   const shanten = calcShanten(counts, p.melds.length);
   const closed = p.melds.every((m) => !meldIsOpen(m));

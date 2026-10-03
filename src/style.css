@@ -1083,7 +1083,6 @@ button.danger-solid { background: #b8433c; border-color: #b8433c; }
   box-shadow: 0 3px 10px rgba(0, 0, 0, .45);
   z-index: 9;
   pointer-events: none;
-  animation: speech-in .2s ease-out;
 }
 .speech ruby rt { color: #8a7a6a; }
 @keyframes speech-in { from { transform: scale(.7); opacity: 0; } to { transform: none; opacity: 1; } }
@@ -1302,3 +1301,9 @@ button.danger-solid { background: #b8433c; border-color: #b8433c; }
 /* 役ナビの見本: 組ごとに少しすき間（3・3・3・3・2） */
 .yk-grp { display: inline-flex; gap: 1px; flex: none; }
 .yk-example, .yk-pop-tiles { column-gap: calc(var(--w, 24px) * .3); row-gap: 4px; }
+
+/* 見込み: カンニング中の印（カンニングボタンと同じ紫） */
+.o-open { display: block; color: #c58cff; font-size: .72rem; font-weight: 600; }
+/* ドラ表示牌の下に、実際のドラ（表示牌の次の牌）を出す */
+.round-info .dora-is { --w: calc(var(--S) * 0.042); display: flex; align-items: center; gap: 2px; margin-top: 4px; white-space: nowrap; }
+.round-info .dora-is span { color: #f2c94c; font-weight: 800; font-size: .85em; margin-right: 2px; }

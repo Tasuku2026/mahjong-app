@@ -876,6 +876,7 @@ export class App implements GameUI {
         <div class="label">${furigana('ドラ表示牌')}</div>
         <div class="dora">${g.doraIndicators.map((t) => tileHtml(t, { red: g.isRed(t) })).join('')}${
           '<div class="tile back"></div>'.repeat(5 - g.doraCount)}</div>
+        <div class="dora-is"><span>ドラ</span>${g.doraIndicators.map((t) => tileHtml(doraFromIndicator(kindOf(t)) * 4 + 3, { classes: ['is-dora'] })).join('')}</div>
       </div>
       <div class="center">
         <div class="remain">残り <b>${g.live.length}</b></div>
@@ -1070,7 +1071,7 @@ export class App implements GameUI {
     const riichiNote = o.assumeRiichi && o.shanten >= 0 ? '<small class="muted">（リーチした場合）</small>' : '';
     return `
       <div class="outlook">
-        <div class="o-head">${head}${shanten}</div>
+        <div class="o-head">${head}${shanten}${this.settings.assist.open ? `<small class="o-open">${furigana('カンニング中：CPUの手牌も数えています')}</small>` : ''}</div>
         <div class="o-yaku"><span class="o-label">目指せる${furigana('役')}</span>${yaku}</div>
         <div class="o-nums">
           <span>${T.agari}時の点数 <b>${o.points ? `約${fmt(o.points)}点` : '—'}</b>${riichiNote}</span>
@@ -1091,15 +1092,15 @@ export class App implements GameUI {
 
     if (a.outlook) {
       if (pend && this.selected !== null) {
-        const info = discardInfo(g, this.selected);
+        const info = discardInfo(g, this.selected, 0, a.open);
         parts.push(this.outlookHtml(g, info.outlook, `${kindRuby(kindOf(this.selected))}を切ると：`, info.ukeire));
       } else if (pend) {
         const adv = this.hint(g);
         const tile = adv?.kind === 'turn' && adv.action.type === 'discard' ? adv.action.tile : pend.opts.discardable[0];
-        const info = discardInfo(g, tile);
+        const info = discardInfo(g, tile, 0, a.open);
         parts.push(this.outlookHtml(g, info.outlook, '最善の打牌をした場合：', info.ukeire));
       } else if (p.hand.length % 3 === 1) {
-        parts.push(this.outlookHtml(g, outlook(g, 0), 'いまの手：'));
+        parts.push(this.outlookHtml(g, outlook(g, 0, undefined, remainCounts(g, 0, a.open)), 'いまの手：'));
       }
     }
 
