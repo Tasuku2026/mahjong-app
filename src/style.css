@@ -1428,3 +1428,13 @@ button.cmp-row.sel { border-color: var(--accent); background: rgba(242, 201, 76,
 .cc-nums b { color: var(--accent); }
 .cc-nums b.warn { color: #ff8a80; font-size: .85rem; }
 .cc-nums small { color: var(--muted); font-size: .68rem; }
+
+/* 鳴くとどうなる？: 1行に収めて低く */
+.cc-head { padding-left: 92px; }
+.cc-row { padding: 4px 6px; margin-top: 3px; gap: 6px; }
+.cc-main { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 0 4px; font-size: .85rem; }
+.cc-main b { margin-left: 0; }
+.cc-main small { font-size: .75rem; }
+.cc-cut { display: inline-flex; align-items: center; gap: 1px; }
+.cc-cut .mini { --w: 13px; display: inline-flex; margin: 0; }
+.cc-nums { flex-direction: row; align-items: baseline; gap: 4px; }

@@ -1133,7 +1133,7 @@ export class App implements GameUI {
     return `<span class="${cls}">${pct}%</span>`;
   }
 
-  /** 役・期待値の表示。専門用語にふりがなを付け、初心者向けの言い換えを添える */
+  /** 役・見込みの表示。専門用語にふりがなを付け、初心者向けの言い換えを添える */
   /** 鳴くかどうかのくらべ（選んだ場合ごとに、テンパイまでの枚数・受け入れ・和了率・点数） */
   private callCompareHtml(g: Game, pend: Extract<Pending, { kind: 'call' }>): string {
     const rows = compareCalls(g, pend.tile, pend.from, pend.opts, 0, this.settings.assist.open, pend);
@@ -1151,18 +1151,19 @@ export class App implements GameUI {
       if (r.type === 'ron') {
         return `<div class="cc-row best"><span class="cc-name">ロン</span><span class="cc-main"><b>${furigana('和了')}！</b></span><span class="cc-nums"><b>${fmt(r.points)}点</b></span></div>`;
       }
-      const dist = r.shanten <= 0 ? `<b>${T.tenpai}</b>` : `${T.tenpai}まで<b>あと${r.shanten}枚</b>`;
-      const after = r.discard !== undefined ? `<small>${kindRuby(kindOf(r.discard))}を切った後</small>` : '';
+      // 1行に収める: 「あと2枚・20枚（北切り）」「約45% 2,000点」
+      const dist = r.shanten <= 0 ? '<b>テンパイ</b>' : `<b>あと${r.shanten}枚</b>`;
+      const after = r.discard !== undefined ? `<small class="cc-cut">${this.miniTiles(g, [r.discard])}切り</small>` : '';
       const nums = r.hasYaku
-        ? `<b>約${Math.round(r.winProb * 100)}%</b><small>${r.points ? `約${fmt(r.points)}点` : ''}</small>`
-        : `<b class="warn">${furigana('役なし')}</b><small>${furigana('和了れない')}</small>`;
+        ? `<b>約${Math.round(r.winProb * 100)}%</b><small>${r.points ? `${fmt(r.points)}点` : ''}</small>`
+        : `<b class="warn">${furigana('役なし')}</b>`;
       return `<div class="cc-row ${r.hasYaku && r.winProb === best && best > 0 ? 'best' : ''}">
           <span class="cc-name">${label(r)}</span>
-          <span class="cc-main"><span>${dist}</span><small>${furigana('受け入れ')} ${r.ukeire}枚</small>${after}</span>
+          <span class="cc-main">${dist}<small>・${r.ukeire}枚</small>${after}</span>
           <span class="cc-nums">${nums}</span></div>`;
     }).join('');
     return `<div class="compare"><div class="cmp-title">鳴くとどうなる？<small>（${furigana('和了率')}がいちばん高いものに印）</small></div>
-      <div class="cmp-head"><span></span><span>${T.tenpai}まで・${furigana('受け入れ')}</span><span>${furigana('和了率')}・点数</span></div>${body}</div>`;
+      <div class="cmp-head cc-head"><span>テンパイまで・${furigana('受け入れ')}</span><span>${furigana('和了率')}・点数</span></div>${body}</div>`;
   }
 
   /** 捨てる牌ごとのくらべ。行をタップするとその牌を選ぶ（もう一度タップで捨てる） */
@@ -1204,7 +1205,6 @@ export class App implements GameUI {
         <div class="o-nums">
           <span>${T.agari}時の点数 <b>${o.points ? `約${fmt(o.points)}点` : '—'}</b>${riichiNote}</span>
           <span>${furigana('和了率')} <b>約${Math.round(o.winProb * 100)}%</b><small>（あがれる確率）</small></span>
-          <span>期待値 <b>約${fmt(Math.round(o.ev / 100) * 100)}点</b><small>（点数×${furigana('和了率')}）</small></span>
           ${ukeire !== undefined ? `<span>${T.ukeire} <b>${ukeire}枚</b><small>（引くとテンパイに近づく牌の残り）</small></span>` : ''}
         </div>
         ${waits}
