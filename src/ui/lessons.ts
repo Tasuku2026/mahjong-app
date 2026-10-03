@@ -6,7 +6,8 @@ import { charaFor, Expr } from './characters';
 
 type Who = 'h' | 'p';
 
-type Option = { text?: string; tiles?: string };
+/** miss: この選択肢を選んだときの、ちがう理由（なければ決まった文） */
+type Option = { text?: string; tiles?: string; miss?: string };
 
 type Step =
   | { t: 'talk'; who: Who; text: string; tiles?: string; face?: Expr }
@@ -137,9 +138,9 @@ export const LESSONS: Lesson[] = [
       { t: 'talk', who: 'p', face: 'surprised', text: 'リーチしたら、そのあとはどうするぴよ？' },
       { t: 'talk', who: 'h', text: 'リーチしたら、もう手は変えられない。引いた牌で和了れなければ、その牌をそのまま捨てていくんじゃ。' },
       { t: 'choice', text: 'リーチできるのはどっちの手？', options: [{ text: '鳴いていない手でテンパイ' }, { text: 'ポンした手でテンパイ' }], answer: 0, explain: '正解！リーチは、鳴いていない手だけの役じゃ。' },
-      { t: 'choice', text: '鳴かずにこの形でテンパイした。でも役がない。どうする？', tiles: '123m 456p 789s 111s 9p', options: [{ text: 'リーチする' }, { text: 'このまま待つ' }], answer: 0, explain: '正解！リーチすれば役ができて、人の捨て牌でも和了れるようになるぞ。' },
       { t: 'talk', who: 'p', face: 'surprised', tiles: '123m 456p 789s 999p 11s', text: 'あれ？レッスン3で和了ったこの手は、リーチも断幺九も役牌もないのに和了れたぴよ？' },
       { t: 'talk', who: 'h', face: 'happy', tiles: '123m 456p 789s 999p 11s', text: 'よく気づいたのう！鳴かずに、自分で引いて和了ると、それだけで「門前清自摸和」という役になるんじゃ。' },
+      { t: 'choice', text: '鳴かずにこの形でテンパイした。役はまだない。人の捨て牌でも和了れるようにするには、どうする？', tiles: '123m 456p 789s 111s 9p', options: [{ text: 'リーチする' }, { text: 'このまま待つ', miss: 'おしいぴよ！このまま待っても、自分で引けば門前清自摸和で和了れるぴよ。でも人の捨て牌では和了れないぴよ。もう一度考えてみるぴよ！' }], answer: 0, explain: '正解！リーチすれば役ができて、人の捨て牌でも和了れるようになる。このまま待つと、和了れるのは自分で引いたときだけじゃ。' },
       { t: 'talk', who: 'p', face: 'happy', text: 'リーチ、かけてみたいぴよ！' },
     ],
   },
@@ -360,7 +361,7 @@ export class LessonUI {
     const s = this.lesson!.steps[this.step];
     if (s.t !== 'choice' || this.solved) return;
     const ok = i === s.answer;
-    this.feedback = ok ? { ok, text: s.explain } : { ok, text: 'ざんねん、ちがうぴよ…。もう一度考えてみるぴよ！' };
+    this.feedback = ok ? { ok, text: s.explain } : { ok, text: s.options[i].miss ?? 'ざんねん、ちがうぴよ…。もう一度考えてみるぴよ！' };
     this.solved = ok;
     this.render();
   }
