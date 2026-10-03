@@ -1304,10 +1304,6 @@ button.danger-solid { background: #b8433c; border-color: #b8433c; }
 
 /* 見込み: カンニング中の印（カンニングボタンと同じ紫） */
 .o-open { display: block; color: #c58cff; font-size: .72rem; font-weight: 600; }
-/* ドラ表示牌の右に、矢印と実際のドラ（表示牌の次の牌） */
-.round-info .dora { align-items: center; }
-.round-info .dora-arrow { color: #f2c94c; font-weight: 800; margin: 0 2px; font-size: .9em; }
-.round-info .dora-to { color: #f2c94c; font-weight: 800; margin-left: 2px; }
 
 /* 補助ボタンを少し大きく（押し分けやすく） */
 .tools { gap: 2px; }
@@ -1397,3 +1393,15 @@ button.cmp-row.sel { border-color: var(--accent); background: rgba(242, 201, 76,
 .dex-item b { display: block; font-size: .9rem; }
 .dex-item small { color: var(--muted); font-size: .68rem; }
 .dex-new { background: rgba(242, 201, 76, .15); border: 1px solid var(--accent); border-radius: 10px; padding: 6px 10px; margin-bottom: 8px; font-weight: 700; }
+
+/* 教室: コースの切り替え（初級・中級・上級） */
+.ls-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 4px 0 10px; }
+.ls-tab { min-height: 44px; font-weight: 800; background: rgba(0, 0, 0, .22); border: 1px solid #3c5e4e; color: var(--muted); }
+.ls-tab.on { background: var(--accent); border-color: var(--accent); color: #241a05; }
+.ls-tab small { margin-left: 2px; }
+.ls-hint { color: var(--muted); font-size: .82rem; line-height: 1.7; margin: 0 0 8px; }
+.ls-opt.wrong { background: #7a2b26; border-color: var(--win); color: #fff; }
+.tile.ls-mini { --w: 20px; display: inline-flex; vertical-align: middle; }
+/* 教室の吹き出し: 長い用語が続いても画面からはみ出さない */
+.ls-bubble { min-width: 0; }
+.ls-bubble p, .ls-feedback p { overflow-wrap: anywhere; }

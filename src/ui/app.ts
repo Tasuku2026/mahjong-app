@@ -113,7 +113,7 @@ export class App implements GameUI {
   /** 練習（何切る・点数計算・役の図鑑） */
   private practice: PracticeUI;
   /** 卒業対局中か（1回和了ったら卒業） */
-  private lessonGame = false;
+  private lessonGame: false | 'basic' | 'mid' = false;
   /** キャラクターの吹き出しと表情（席ごと） */
   private speech = new Map<number, { text: string; key: number }>();
   private faces = new Map<number, { expr: Expr; key: number }>();
@@ -135,7 +135,7 @@ export class App implements GameUI {
     this.root = root;
     this.practice = new PracticeUI(root, { backToTop: () => this.showStart() });
     this.lessons = new LessonUI(root, {
-      startGraduation: () => { void this.startGraduation(); },
+      startGraduation: (c) => { void this.startGraduation(c); },
       backToTop: () => this.showStart(),
     });
     this.settings = loadSettings();
@@ -438,17 +438,24 @@ export class App implements GameUI {
     saveSettings(s);
   }
 
-  /** 卒業対局: ぴよ3人と東風戦。おすすめ・見込み・役ナビをオン */
-  private async startGraduation(): Promise<void> {
+  /**
+   * 卒業対局（東風戦）。
+   * 初級: ぴよ3人。おすすめ・見込み・役ナビをオン。1回和了ったら卒業
+   * 中級: レベル4・5の相手。補助はいつもどおり。2位以内で卒業
+   */
+  private async startGraduation(course: 'basic' | 'mid' = 'basic'): Promise<void> {
     this.overlay = null;
-    this.settings.assist.hint = true;
-    this.settings.assist.outlook = true;
-    this.settings.yakuSide = true;
-    saveSettings(this.settings);
-    await this.startGame({ levels: [1, 1, 1], rules: { ...this.settings.rules, gameLength: 'tonpu', undo: true } }, true);
+    if (course === 'basic') {
+      this.settings.assist.hint = true;
+      this.settings.assist.outlook = true;
+      this.settings.yakuSide = true;
+      saveSettings(this.settings);
+    }
+    const levels: [number, number, number] = course === 'basic' ? [1, 1, 1] : [4, 5, 5];
+    await this.startGame({ levels, rules: { ...this.settings.rules, gameLength: 'tonpu', undo: true } }, course);
   }
 
-  async startGame(override?: Partial<Pick<Settings, 'levels' | 'rules'>>, lesson = false): Promise<void> {
+  async startGame(override?: Partial<Pick<Settings, 'levels' | 'rules'>>, lesson: false | 'basic' | 'mid' = false): Promise<void> {
     const s = { ...this.settings, ...override };
     this.lessonGame = lesson;
     const token = ++this.gameToken;
@@ -547,7 +554,7 @@ export class App implements GameUI {
     if (r.type !== 'win') sfx.draw();
     return new Promise((resolve) => {
       let banner = '';
-      if (this.lessonGame && myWin) {
+      if (this.lessonGame === 'basic' && myWin) {
         const p = loadProgress();
         if (!p.graduated) {
           p.graduated = true;
@@ -942,9 +949,9 @@ export class App implements GameUI {
     return `
       <div class="round-info">
         <div class="round">${roundRuby(g.roundName)}<small>${g.honba}${furigana('本場')}</small></div>
-        <div class="label">${furigana('ドラ表示牌')}<span class="dora-to">→ドラ</span></div>
-        <div class="dora">${g.doraIndicators.map((t) => tileHtml(t, { red: g.isRed(t) })).join('')}<span class="dora-arrow">→</span>${
-          g.doraIndicators.map((t) => tileHtml(doraFromIndicator(kindOf(t)) * 4 + 3, { classes: ['is-dora'] })).join('')}</div>
+        <div class="label">${furigana('ドラ表示牌')}</div>
+        <div class="dora">${g.doraIndicators.map((t) => tileHtml(t, { red: g.isRed(t) })).join('')}${
+          '<div class="tile back"></div>'.repeat(5 - g.doraCount)}</div>
       </div>
       <div class="center">
         <div class="remain">残り <b>${g.live.length}</b></div>
@@ -1410,10 +1417,23 @@ export class App implements GameUI {
     if (myRank === 1) sfx.win();
     trackEvent('game-finish', '対局終了');
     trackEvent(`rank-${myRank}`, `最終${myRank}位`);
+    // 中級の卒業対局: 2位以内で卒業
+    let midBanner = '';
+    if (this.lessonGame === 'mid' && myRank <= 2) {
+      const p = loadProgress();
+      if (!p.midGrad) {
+        p.midGrad = true;
+        saveProgress(p);
+        midBanner = `<div class="graduate-banner">${charaFor(9).face('happy')}<div><b>🎓 ${furiganaKids('中級コース卒業おめでとう！')}</b><p>${furiganaKids(`${myRank}位、見事じゃ！ 次は上級コースで、点数のしくみを学んでみるとよいぞ。`)}</p></div></div>`;
+      }
+    }
+    const lp = loadProgress();
+    const passed = this.lessonGame === 'mid' ? lp.midGrad : lp.graduated;
     return new Promise((resolve) => {
       this.overlay = {
         html: `
           <div class="result final">
+            ${midBanner}
             <div class="result-title">対局終了</div>
             <h2 class="rank rank${myRank}">あなたは ${myRank}位</h2>
             <table class="scores">${rows}</table>
@@ -1421,7 +1441,7 @@ export class App implements GameUI {
             ${this.review.total ? `<div class="review"><b class="review-title">ふり返り</b><p>おすすめと同じ牌を切った割合 <b>${Math.round((this.review.match / this.review.total) * 100)}%</b>（${this.review.match} / ${this.review.total}回）</p></div>` : ''}
             <div class="btns">
               ${this.lessonGame
-    ? `${loadProgress().graduated ? '' : '<button class="primary" data-act="ls-graduate">もう一度卒業対局</button>'}<button class="${loadProgress().graduated ? 'primary' : ''}" data-act="lesson">教室に戻る</button><button data-act="title">トップ画面へ</button>`
+    ? `${passed ? '' : `<button class="primary" data-act="ls-graduate" data-c="${this.lessonGame}">もう一度卒業対局</button>`}<button class="${passed ? 'primary' : ''}" data-act="lesson">教室に戻る</button><button data-act="title">トップ画面へ</button>`
     : '<button class="primary" data-act="restart">同じ設定でもう一度</button><button data-act="title">設定に戻る</button>'}
             </div>
           </div>`,

@@ -3,21 +3,25 @@ import { Tile, kindOf, parseTiles, isRedTile } from '../core/tiles';
 import { tileHtml } from './tileView';
 import { furiganaKids as furigana } from './terms';
 import { charaFor, Expr } from './characters';
+import { MID_LESSONS, ADV_LESSONS, MID_GRAD, ADV_GRAD } from './lessonsMore';
+import { makeScoreQuiz, rng, ScoreQuiz } from './practice';
+import { WIND_NAMES, doraFromIndicator } from '../core/tiles';
 
 type Who = 'h' | 'p';
 
 /** miss: この選択肢を選んだときの、ちがう理由（なければ決まった文） */
 type Option = { text?: string; tiles?: string; miss?: string };
 
-type Step =
+export type Step =
   | { t: 'talk'; who: Who; text: string; tiles?: string; face?: Expr }
+  | { t: 'scoretest'; text: string }
   | { t: 'pick'; text: string; tiles: string; answer: string; explain: string; shown?: { label: string; tiles: string } }
   | { t: 'choice'; text: string; tiles?: string; options: Option[]; answer: number; explain: string }
   | { t: 'group'; text: string; tiles: string }
   | { t: 'play'; text: string; hand: string; script: { draw: string; discard?: string; say: string }[] }
   | { t: 'graduate'; text: string };
 
-interface Lesson { id: number; title: string; sub: string; steps: Step[] }
+export interface Lesson { id: number; title: string; sub: string; steps: Step[] }
 
 /** 卒業対局の番号（レッスンの後ろ） */
 const GRAD = 11;
@@ -212,9 +216,15 @@ export const LESSONS: Lesson[] = [
 const KEY = 'mahjong-lesson-v1';
 
 export interface LessonProgress {
+  /** 初級コースの済んだレッスン */
   done: number[];
   graduated: boolean;
   introShown: boolean;
+  /** 中級・上級コースの済んだレッスンと卒業 */
+  mid: number[];
+  adv: number[];
+  midGrad: boolean;
+  advGrad: boolean;
 }
 
 export function loadProgress(): LessonProgress {
@@ -225,9 +235,12 @@ export function loadProgress(): LessonProgress {
     const v = p.v ?? 1;
     if (v < 2) done = done.map((id) => ({ 4: 5, 5: 6, 6: 4 } as Record<number, number>)[id] ?? id);
     if (v < 3) done = done.map((id) => ({ 7: 8, 8: 10 } as Record<number, number>)[id] ?? id);
-    return { done, graduated: !!p.graduated, introShown: !!p.introShown };
+    return {
+      done, graduated: !!p.graduated, introShown: !!p.introShown,
+      mid: p.mid ?? [], adv: p.adv ?? [], midGrad: !!p.midGrad, advGrad: !!p.advGrad,
+    };
   } catch {
-    return { done: [], graduated: false, introShown: false };
+    return { done: [], graduated: false, introShown: false, mid: [], adv: [], midGrad: false, advGrad: false };
   }
 }
 
@@ -252,12 +265,35 @@ const tilesHtml = (s: string, cls = '') => s.trim().split(/\s+/)
     .map((t, j) => tileHtml(t, { red: isRedTile(t), sideways: i > 0 && j === 0, classes: cls ? [cls] : [] })).join('')).join(''))
   .join('<span class="ls-sep"></span>');
 
+export type CourseKey = 'basic' | 'mid' | 'adv';
+
+interface Course { key: CourseKey; name: string; desc: string; lessons: Lesson[]; grad: number }
+
+const COURSES: Course[] = [
+  { key: 'basic', name: '初級', desc: '麻雀のルールを、ゼロから楽しく覚えよう！', lessons: LESSONS, grad: GRAD },
+  { key: 'mid', name: '中級', desc: 'ひとりで最後まで打てるように。待ち・フリテン・カン・牌効率・たくさんの役・守り方を学ぶぞ。', lessons: MID_LESSONS, grad: MID_GRAD },
+  { key: 'adv', name: '上級', desc: '点数と勝ち方を学ぶ。符・点数表・本場・役満・押し引き・オーラスの考え方じゃ。', lessons: ADV_LESSONS, grad: ADV_GRAD },
+];
+
+/** コースごとの「済んだレッスン」と「卒業」 */
+function courseDone(p: LessonProgress, c: CourseKey): number[] {
+  return c === 'basic' ? p.done : c === 'mid' ? p.mid : p.adv;
+}
+function courseGrad(p: LessonProgress, c: CourseKey): boolean {
+  return c === 'basic' ? p.graduated : c === 'mid' ? p.midGrad : p.advGrad;
+}
+
 export interface LessonHooks {
-  startGraduation(): void;
+  startGraduation(course: 'basic' | 'mid'): void;
   backToTop(): void;
 }
 
+/** 点数計算テストの問題数と合格ライン */
+const TEST_N = 5;
+const TEST_PASS = 4;
+
 export class LessonUI {
+  private course: CourseKey = 'basic';
   private lesson: Lesson | null = null;
   private step = 0;
   private feedback: { ok: boolean; text: string } | null = null;
@@ -270,31 +306,52 @@ export class LessonUI {
   private hand: Tile[] = [];
   private drawn: Tile | null = null;
   private si = 0;
+  // 点数計算テスト
+  private quizzes: ScoreQuiz[] = [];
+  private qi = 0;
+  private qRight = 0;
+  private qPicked: string | null = null;
 
   constructor(private root: HTMLElement, private hooks: LessonHooks) {}
 
-  /** 教室のトップ（レッスン一覧） */
-  showMenu(): void {
+  private get cur(): Course {
+    return COURSES.find((c) => c.key === this.course)!;
+  }
+
+  /** 教室のトップ（コースとレッスンの一覧） */
+  showMenu(course?: CourseKey): void {
     this.lesson = null;
     const p = loadProgress();
+    // はじめは、まだ卒業していないいちばん下のコースを開く
+    if (course) this.course = course;
+    const c = this.cur;
     const h = charaFor(9);
-    const items = LESSONS.map((l) => {
-      const done = l.id === GRAD ? p.graduated : p.done.includes(l.id);
+    const done = courseDone(p, c.key);
+    const items = c.lessons.map((l) => {
+      const ok = l.id === c.grad ? courseGrad(p, c.key) : done.includes(l.id);
       return `
-        <button class="ls-item ${done ? 'done' : ''}" data-act="ls-open" data-id="${l.id}">
-          <span class="ls-no">${l.id === GRAD ? furigana('卒業') : `${l.id}`}</span>
+        <button class="ls-item ${ok ? 'done' : ''}" data-act="ls-open" data-id="${l.id}">
+          <span class="ls-no">${l.id === c.grad ? furigana('卒業') : `${l.id}`}</span>
           <span class="ls-text"><b>${furigana(l.title)}</b><small>${furigana(l.sub)}</small></span>
-          <span class="ls-stamp">${done ? '<span class="stamp-ok">済</span>' : ''}</span>
+          <span class="ls-stamp">${ok ? '<span class="stamp-ok">済</span>' : ''}</span>
         </button>`;
     }).join('');
-    const next = LESSONS.find((l) => (l.id === GRAD ? !p.graduated : !p.done.includes(l.id)));
+    const next = c.lessons.find((l) => (l.id === c.grad ? !courseGrad(p, c.key) : !done.includes(l.id)));
+    const tabs = COURSES.map((x) => `
+      <button class="ls-tab ${x.key === c.key ? 'on' : ''}" data-act="ls-course" data-c="${x.key}">${furigana(x.name)}${courseGrad(p, x.key) ? '<small>🎓</small>' : ''}</button>`).join('');
+    const prevKey = c.key === 'mid' ? 'basic' : c.key === 'adv' ? 'mid' : null;
+    const hint = prevKey && !courseGrad(p, prevKey)
+      ? `<p class="ls-hint">${furigana(`${prevKey === 'basic' ? '初級' : '中級'}コースを卒業してから進むのがおすすめじゃ。もちろん、知っている人はここから始めてもよいぞ。`)}</p>`
+      : '';
     this.root.innerHTML = `
       <div class="start lesson-menu">
         <h1>まーじゃん${furigana('教室')}</h1>
-        <div class="ls-hero">${h.face('happy')}<p>${furigana('麻雀のルールを、ゼロから楽しく覚えよう！ 1つのレッスンは2〜3分じゃ。上から順番に進めるのがおすすめじゃぞ。')}</p></div>
-        ${p.graduated ? `<p class="ls-graduated">🎓 ${furigana('卒業おめでとう！ もう立派な雀士じゃ')}</p>` : ''}
+        <div class="ls-tabs">${tabs}</div>
+        <div class="ls-hero">${h.face('happy')}<p>${furigana(`${c.desc} 1つのレッスンは2〜3分じゃ。`)}</p></div>
+        ${hint}
+        ${courseGrad(p, c.key) ? `<p class="ls-graduated">🎓 ${furigana(`${c.name}コース卒業おめでとう！`)}</p>` : ''}
         <div class="ls-list">${items}</div>
-        ${next ? `<button class="primary big" data-act="ls-open" data-id="${next.id}">${furigana(next.id === GRAD ? '卒業対局へ' : `レッスン${next.id}から始める`)}</button>` : ''}
+        ${next ? `<button class="primary big" data-act="ls-open" data-id="${next.id}">${furigana(next.id === c.grad ? (c.key === 'adv' ? '卒業試験へ' : '卒業対局へ') : `レッスン${next.id}から始める`)}</button>` : ''}
         <button class="big secondary" data-act="ls-top">トップ${furigana('画面に戻る')}</button>
       </div>`;
   }
@@ -303,6 +360,7 @@ export class LessonUI {
   handle(act: string, el: HTMLElement): boolean {
     switch (act) {
       case 'ls-menu': this.showMenu(); return true;
+      case 'ls-course': this.showMenu(el.dataset.c as CourseKey); return true;
       case 'ls-top': this.hooks.backToTop(); return true;
       case 'ls-open': this.open(Number(el.dataset.id)); return true;
       case 'ls-next': this.next(); return true;
@@ -316,13 +374,19 @@ export class LessonUI {
       case 'ls-reset': this.go(this.step); return true;
       case 'ls-discard': this.discard(Number(el.dataset.tile)); return true;
       case 'ls-tsumo': this.tsumo(); return true;
-      case 'ls-graduate': this.hooks.startGraduation(); return true;
+      case 'ls-sq': this.answerTest(el.dataset.v!); return true;
+      case 'ls-sq-next': this.nextTest(); return true;
+      case 'ls-graduate': {
+        const c = (el.dataset.c as 'basic' | 'mid' | undefined) ?? (this.course === 'mid' ? 'mid' : 'basic');
+        this.hooks.startGraduation(c);
+        return true;
+      }
     }
     return false;
   }
 
   private open(id: number): void {
-    this.lesson = LESSONS.find((l) => l.id === id) ?? LESSONS[0];
+    this.lesson = this.cur.lessons.find((l) => l.id === id) ?? this.cur.lessons[0];
     this.go(0);
   }
 
@@ -342,6 +406,13 @@ export class LessonUI {
       this.si = 0;
       this.drawn = parseTiles(s.script[0].draw)[0] + 2; // 手牌と別の牌IDにする
     }
+    if (s.t === 'scoretest') {
+      const rand = rng(Math.floor(Math.random() * 2 ** 31));
+      this.quizzes = Array.from({ length: TEST_N }, () => makeScoreQuiz(rand));
+      this.qi = 0;
+      this.qRight = 0;
+      this.qPicked = null;
+    }
     this.render();
   }
 
@@ -355,9 +426,75 @@ export class LessonUI {
     }
     // レッスン終わり
     const p = loadProgress();
-    if (!p.done.includes(l.id)) p.done.push(l.id);
+    const done = courseDone(p, this.course);
+    if (!done.includes(l.id)) done.push(l.id);
     saveProgress(p);
     this.renderComplete();
+  }
+
+  // ---- 点数計算テスト ----
+  private answerTest(v: string): void {
+    if (this.qPicked !== null) return;
+    this.qPicked = v;
+    if (v === this.quizzes[this.qi].answer) this.qRight++;
+    this.render();
+  }
+
+  private nextTest(): void {
+    if (this.qPicked === null) return;
+    if (this.qi < TEST_N - 1) {
+      this.qi++;
+      this.qPicked = null;
+      this.render();
+      return;
+    }
+    // 採点
+    const pass = this.qRight >= TEST_PASS;
+    this.qPicked = null;
+    this.qi = TEST_N;
+    if (pass) {
+      this.solved = true;
+      const p = loadProgress();
+      if (this.course === 'adv') p.advGrad = true;
+      saveProgress(p);
+      this.feedback = { ok: true, text: `${TEST_N}問中${this.qRight}問正解！ 合格じゃ。上級コース卒業、おめでとう！` };
+    } else {
+      this.feedback = { ok: false, text: `${TEST_N}問中${this.qRight}問正解。${TEST_PASS}問以上で合格じゃ。点数表を見直して、もう一度ちょうせんしよう。` };
+    }
+    this.render();
+  }
+
+  private testHtml(): { stage: string; actions: string } {
+    if (this.qi >= TEST_N) {
+      return { stage: '', actions: this.solved ? '' : `<button class="primary" data-act="ls-reset">${furigana('もう一度ちょうせんする')}</button>` };
+    }
+    const q = this.quizzes[this.qi];
+    const picked = this.qPicked;
+    const cond = [
+      q.dealer ? '親' : `子（自分の風 ${WIND_NAMES[q.seatWind - 27]}）`,
+      '東1局',
+      q.tsumo ? 'ツモ' : 'ロン',
+      q.riichi ? 'リーチあり' : 'リーチなし',
+    ].join('・');
+    const choices = q.choices.map((c) => {
+      const cls = picked === null ? '' : c === q.answer ? 'right' : c === picked ? 'wrong' : '';
+      return `<button class="ls-opt ${cls}" data-act="ls-sq" data-v="${c}">${furigana(c)}</button>`;
+    }).join('');
+    let detail = '';
+    if (picked !== null) {
+      const r = q.result;
+      const yaku = [...r.yaku.map((y) => `${y.name} ${y.han}翻`), ...(r.dora ? [`ドラ ${r.dora}翻`] : [])].join('、');
+      detail = `<div class="ls-feedback ${picked === q.answer ? 'ok' : 'ng'}">${picked === q.answer ? charaFor(9).face('happy') : charaFor(1).face('sad')}<p>${furigana(
+        `${picked === q.answer ? '正解！' : `正解は ${q.answer}。`}${yaku}。合計${r.han}翻${r.fu}符${r.limit ? `（${r.limit}）` : ''}じゃ。`)}</p></div>`;
+    }
+    const stage = `
+      <div class="ls-label">${furigana(`第${this.qi + 1}問（${TEST_N}問中）　${cond}`)}</div>
+      <div class="ls-label">${furigana('ドラ表示牌')} ${tileHtml(q.dora, { classes: ['ls-mini'] })} → ドラ ${tileHtml(doraFromIndicator(kindOf(q.dora)) * 4 + 3, { classes: ['ls-mini'] })}</div>
+      <div class="ls-tiles hand">${q.hand.map((t) => tileHtml(t)).join('')}<span class="ls-gap"></span>${tileHtml(q.winTile, { classes: ['drawn'] })}</div>
+      <div class="ls-label">${furigana('右はしが和了牌')}</div>
+      <div class="ls-options">${choices}</div>${detail}`;
+    const actions = picked !== null ? `<button class="primary" data-act="ls-sq-next">${furigana(this.qi < TEST_N - 1 ? '次の問題' : '結果を見る')}</button>` : '';
+    return { stage, actions };
   }
 
   private pick(t: Tile): void {
@@ -511,8 +648,15 @@ export class LessonUI {
       }
       case 'graduate':
         talk = this.talkHtml('h', s.text, 'happy');
-        actions = `<button class="primary big" data-act="ls-graduate">${furigana('卒業対局を始める')}</button>`;
+        actions = `<button class="primary big" data-act="ls-graduate" data-c="${this.course === 'mid' ? 'mid' : 'basic'}">${furigana('卒業対局を始める')}</button>`;
         break;
+      case 'scoretest': {
+        const t = this.testHtml();
+        stage = t.stage;
+        talk = this.talkHtml('h', this.qi >= TEST_N ? (this.solved ? '見事じゃ！' : 'おしかったのう。') : s.text, this.solved ? 'happy' : 'normal');
+        actions = t.actions;
+        break;
+      }
     }
     const fb = this.feedback
       ? `<div class="ls-feedback ${this.feedback.ok ? 'ok' : 'ng'}">${this.feedback.ok ? charaFor(9).face('happy') : charaFor(1).face('sad')}<p>${furigana(this.feedback.text)}</p></div>`
@@ -521,26 +665,27 @@ export class LessonUI {
       <div class="lesson">
         <div class="ls-top">
           <button class="secondary" data-act="ls-menu">← ${furigana('教室')}</button>
-          <div class="ls-title"><small>${furigana(l.id === GRAD ? '卒業' : `レッスン${l.id}`)}</small>${furigana(l.title)}</div>
+          <div class="ls-title"><small>${furigana(`${this.cur.name}・${l.id === this.cur.grad ? '卒業' : `レッスン${l.id}`}`)}</small>${furigana(l.title)}</div>
         </div>
         <div class="ls-dots">${dots}</div>
         <div class="ls-stage">${stage}</div>
         ${talk}
         ${fb}
-        <div class="ls-actions">${actions}${s.t !== 'graduate' ? prevBtn + nextBtn : prevBtn}</div>
+        <div class="ls-actions">${actions}${s.t === 'graduate' || (s.t === 'scoretest' && !this.solved) ? prevBtn : prevBtn + nextBtn}</div>
       </div>`;
   }
 
   private renderComplete(): void {
     const l = this.lesson!;
-    const nextL = LESSONS.find((x) => x.id === l.id + 1);
+    const c = this.cur;
+    const nextL = c.lessons.find((x) => x.id === l.id + 1);
     this.root.innerHTML = `
       <div class="lesson ls-complete">
         <div class="ls-stamp-big">済</div>
-        <h2>レッスン${l.id}「${furigana(l.title)}」${furigana('完了！')}</h2>
+        <h2>${l.id === c.grad ? furigana(`${c.name}コース卒業！`) : `レッスン${l.id}「${furigana(l.title)}」${furigana('完了！')}`}</h2>
         ${this.talkHtml('p', 'やったぴよ！また1つ賢くなったぴよ！', 'happy')}
         <div class="ls-actions">
-          ${nextL ? `<button class="primary big" data-act="ls-open" data-id="${nextL.id}">${furigana(nextL.id === GRAD ? '卒業対局へ' : `次のレッスン（${nextL.title}）`)}</button>` : ''}
+          ${nextL ? `<button class="primary big" data-act="ls-open" data-id="${nextL.id}">${furigana(nextL.id === c.grad ? (c.key === 'adv' ? '卒業試験へ' : '卒業対局へ') : `次のレッスン（${nextL.title}）`)}</button>` : ''}
           <button class="big secondary" data-act="ls-menu">${furigana('教室に戻る')}</button>
         </div>
       </div>`;

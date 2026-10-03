@@ -13,7 +13,7 @@ const fmt = (n: number) => n.toLocaleString('ja-JP');
 // 乱数（「今日の1問」は日付から同じ問題を作る）
 // ---------------------------------------------------------------
 
-function rng(seed: number): () => number {
+export function rng(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;
@@ -83,7 +83,7 @@ function makeNanikiru(rand: () => number): Nanikiru {
 // 点数計算の練習
 // ---------------------------------------------------------------
 
-interface ScoreQuiz {
+export interface ScoreQuiz {
   hand: Tile[]; // 和了牌を除く13枚
   winTile: Tile;
   tsumo: boolean;
@@ -103,7 +103,7 @@ function pointText(base: number, dealer: boolean, tsumo: boolean): string {
 }
 
 /** 鳴きなしの和了形をでたらめに作り、役があるものを問題にする */
-function makeScoreQuiz(rand: () => number): ScoreQuiz {
+export function makeScoreQuiz(rand: () => number): ScoreQuiz {
   const pick = (n: number) => Math.floor(rand() * n);
   for (let tries = 0; tries < 5000; tries++) {
     const counts = new Array(34).fill(0);
