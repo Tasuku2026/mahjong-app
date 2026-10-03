@@ -138,7 +138,8 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
   transform: translateY(calc(var(--w) * 0.18)) rotate(90deg);
 }
 .side.called > .tile, .tile.called { opacity: .35; }
-.tile.last, .side.last > .tile { outline: 2px solid var(--accent); outline-offset: 0; }
+/* 最後に捨てられた牌: ドラ（金色）と見分けやすいように赤い枠 */
+.tile.last, .side.last > .tile { outline: 2px solid #ff3b30; outline-offset: 0; }
 
 /* ---------------- 対局画面 ---------------- */
 .game {
