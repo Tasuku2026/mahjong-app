@@ -457,7 +457,7 @@ button.chip.on.cheat { background: #b78cff; border-color: #b78cff; }
   background: var(--panel);
   border-radius: 10px;
   padding: 4px 6px;
-  --w: min(calc((min(100vw, 640px) - 58px) / 18 - 1px), 28px);
+  --w: min(calc((min(100vw, 640px) - 58px) / 18.5 - 1px), 28px);
 }
 .remain-grid .r-title {
   writing-mode: vertical-rl;
@@ -864,7 +864,7 @@ button.danger-solid { background: #b8433c; border-color: #b8433c; }
 }
 .game.side-layout .my-hand { --w: min(calc((var(--S) - 16px) / 14.6), 46px); }
 .game.side-layout .my-melds { --w: min(calc((var(--S) - 20px) / 19), 32px); }
-.game.side-layout .remain-grid { --w: min(calc((var(--S) - 58px) / 18 - 1px), 28px); }
+.game.side-layout .remain-grid { --w: min(calc((var(--S) - 58px) / 18.5 - 1px), 28px); }
 .yaku-btn.on { background: var(--accent); }
 
 /* 役名のポップアップ（完成形の図柄） */
@@ -1438,3 +1438,5 @@ button.cmp-row.sel { border-color: var(--accent); background: rgba(242, 201, 76,
 .cc-cut { display: inline-flex; align-items: center; gap: 1px; }
 .cc-cut .mini { --w: 13px; display: inline-flex; margin: 0; }
 .cc-nums { flex-direction: row; align-items: baseline; gap: 4px; }
+/* 残り牌: 萬子・筒子・索子・字牌の区切りに少しすき間 */
+.r-sep { flex: none; width: calc(var(--w) * .45); }

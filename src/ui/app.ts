@@ -1249,7 +1249,7 @@ export class App implements GameUI {
       const cell = (k: number) => `<div class="r-cell ${rem[k] === 0 ? 'zero' : ''} ${waits.has(k) ? 'r-wait' : ''} ${aims.has(k) ? 'r-aim' : ''}">${tileHtml(k * 4 + 3)}<span>${rem[k]}</span></div>`;
       // 1段目: 萬子・筒子、2段目: 索子・字牌
       const rows = [[0, 18], [18, 34]].map(([s, e]) =>
-        `<div class="r-row">${Array.from({ length: e - s }, (_, i) => cell(s + i)).join('')}</div>`).join('');
+        `<div class="r-row">${Array.from({ length: e - s }, (_, i) => (s + i === 9 || s + i === 27 ? '<span class="r-sep"></span>' : '') + cell(s + i)).join('')}</div>`).join('');
       // ほかの補助情報より先（パネルの一番上）に出す
       const legend = (waits.size ? `<span class="lg-wait">${furigana('■和了牌')}</span>` : '') + (aims.size ? '<span class="lg-aim">■狙いの役に近づく牌</span>' : '');
       parts.unshift(`<div class="remain-grid"><div class="r-title">残り牌</div><div class="r-rows">${rows}${legend ? `<div class="r-legend">${legend}</div>` : ''}</div></div>`);
