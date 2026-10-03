@@ -1,6 +1,7 @@
 // プレイヤー向けの補助情報（残り牌・危険牌・おすすめ・見込み）
 import { CallAction, CallOptions, Game, TurnAction, TurnOptions } from '../core/game';
-import { Kind, Tile, kindOf } from '../core/tiles';
+import { Kind, Tile, kindOf, toCounts } from '../core/tiles';
+import { calcShanten } from '../core/shanten';
 import { CpuAgent, evaluateDiscards } from '../ai/cpu';
 import { dangerByOpponent, exactHits } from '../ai/danger';
 import { outlook, Outlook } from '../ai/value';
@@ -84,4 +85,85 @@ export function adviseTurn(g: Game, opts: TurnOptions, seat = 0): Advice {
 
 export function adviseCall(g: Game, tile: Tile, from: number, opts: CallOptions, seat = 0): Advice {
   return { kind: 'call', action: hintAgent.decideCall(g, seat, tile, from, opts) };
+}
+
+// ---------------------------------------------------------------
+// 見込み: 捨てる牌ごとのくらべ（テンパイのとり方／テンパイの一歩手前）
+// ---------------------------------------------------------------
+
+export interface CompareRow {
+  /** 捨てる牌（タップで選べるように、実際の牌ID） */
+  tile: Tile;
+  /** 待ち（テンパイ）または、引くとテンパイになる牌（一歩手前）と、その残り枚数 */
+  tiles: { kind: Kind; remain: number; points?: number }[];
+  /** 合計の残り枚数 */
+  total: number;
+  /** テンパイのときだけ: 点数・和了率 */
+  points?: number;
+  winProb?: number;
+}
+
+export interface CompareTable {
+  mode: 'tenpai' | 'iishanten';
+  rows: CompareRow[];
+}
+
+let compareCache: { key: string; table: CompareTable | null } | null = null;
+
+/**
+ * 14枚（自分の番）のとき、捨てる牌ごとの比較。
+ * - テンパイにとれる捨て方が2つ以上 → 捨て方ごとの待ち・残り枚数・点数・和了率（和了率の高い順）
+ * - テンパイの一歩手前 → 引くとテンパイになる牌が多い捨て方を上位3つ
+ */
+export function compareDiscards(g: Game, candidates: Tile[], seat = 0, openHands = false): CompareTable | null {
+  const p = g.players[seat];
+  if (p.riichi || p.hand.length % 3 !== 2) return null;
+  const unseen = remainCounts(g, seat, openHands);
+  const key = [p.hand.slice().sort((a, b) => a - b).join(','), candidates.join(','), unseen.join(''), p.melds.length, g.doraIndicators.join(',')].join('|');
+  if (compareCache?.key === key) return compareCache.table;
+
+  const evals = evaluateDiscards(p.hand, p.melds.length, unseen, candidates);
+  const best = Math.min(...evals.map((e) => e.shanten));
+  let table: CompareTable | null = null;
+  const advancing = (hand13: Tile[], s: number) => {
+    // 引くと向聴数が下がる牌
+    const counts = toCounts(hand13);
+    const out: { kind: Kind; remain: number }[] = [];
+    for (let k = 0; k < 34; k++) {
+      if (unseen[k] <= 0 || counts[k] >= 4) continue;
+      counts[k]++;
+      if (calcShanten(counts, p.melds.length) < s) out.push({ kind: k, remain: unseen[k] });
+      counts[k]--;
+    }
+    return out;
+  };
+  const without = (t: Tile) => {
+    const h = p.hand.slice();
+    h.splice(h.indexOf(t), 1);
+    return h;
+  };
+
+  if (best === 0) {
+    const opts = evals.filter((e) => e.shanten === 0);
+    if (opts.length >= 2) {
+      const rows = opts.map((e) => {
+        const o = outlook(g, seat, without(e.tile), unseen);
+        const tiles = o.waits.map((w) => ({ kind: w.kind, remain: w.remain, points: Math.max(w.ron, w.tsumo) }));
+        return { tile: e.tile, tiles, total: tiles.reduce((a, w) => a + w.remain, 0), points: o.points, winProb: o.winProb };
+      });
+      rows.sort((a, b) => (b.winProb! - a.winProb!) || (b.points! - a.points!));
+      table = { mode: 'tenpai', rows };
+    }
+  } else if (best === 1) {
+    const rows = evals.filter((e) => e.shanten === 1)
+      .sort((a, b) => b.ukeire - a.ukeire)
+      .slice(0, 3)
+      .map((e) => {
+        const tiles = advancing(without(e.tile), 1);
+        return { tile: e.tile, tiles, total: tiles.reduce((a, w) => a + w.remain, 0) };
+      });
+    if (rows.length) table = { mode: 'iishanten', rows };
+  }
+  compareCache = { key, table };
+  return table;
 }

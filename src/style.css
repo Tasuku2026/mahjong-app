@@ -1329,3 +1329,25 @@ button.danger-solid { background: #b8433c; border-color: #b8433c; }
 }
 .undo-btn svg { width: 18px; height: 18px; }
 .undo-btn:disabled { opacity: .45; }
+
+/* 見込み: 捨てる牌ごとのくらべ */
+.compare { background: var(--panel); border-radius: 10px; padding: 8px 10px; margin-top: 6px; }
+.cmp-title { font-weight: 800; margin-bottom: 4px; }
+.cmp-title small { color: var(--muted); font-weight: 400; font-size: .72rem; margin-left: 4px; }
+.cmp-head { display: flex; justify-content: space-between; color: var(--muted); font-size: .68rem; padding: 0 4px 2px 52px; }
+button.cmp-row {
+  display: flex; align-items: center; gap: 6px; width: 100%; min-height: 0;
+  padding: 5px 6px; margin-top: 4px; border-radius: 8px; text-align: left;
+  background: rgba(0, 0, 0, .22); border: 1px solid transparent; color: var(--text); font-weight: 400;
+  --w: 19px;
+}
+button.cmp-row.sel { border-color: var(--accent); background: rgba(242, 201, 76, .12); }
+.cmp-cut { display: flex; flex-direction: column; align-items: center; flex: none; width: 40px; }
+.cmp-cut small { font-size: .6rem; color: var(--muted); margin-top: 1px; }
+.cmp-waits { display: flex; flex-wrap: wrap; gap: 4px 6px; flex: 1; min-width: 0; }
+.cmp-tile { display: flex; align-items: center; gap: 2px; }
+.cmp-tile small { font-size: .7rem; color: var(--text); }
+.cmp-tile.zero { opacity: .45; }
+.cmp-nums { display: flex; flex-direction: column; align-items: flex-end; flex: none; line-height: 1.2; }
+.cmp-nums b { color: var(--accent); }
+.cmp-nums small { font-size: .68rem; color: var(--muted); }

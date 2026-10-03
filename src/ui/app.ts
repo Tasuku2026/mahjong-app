@@ -10,7 +10,7 @@ import { T, furigana, furiganaKids, kindRuby, roundRuby, yakuRuby } from './term
 import { CHARAS, Chara, Expr, Talk, charaFor, pickLine } from './characters';
 import { LessonUI, loadProgress, saveProgress } from './lessons';
 import { aimDiscard, yakuGuideHtml, yakuNeed, yakuPopHtml } from './yakuGuide';
-import { AssistSettings, DEFAULT_ASSIST, DangerMode, Advice, adviseCall, adviseTurn, discardInfo, handDanger, remainCounts } from './assist';
+import { AssistSettings, DEFAULT_ASSIST, DangerMode, Advice, adviseCall, adviseTurn, discardInfo, handDanger, remainCounts, compareDiscards, CompareTable } from './assist';
 import { outlook, Outlook } from '../ai/value';
 import { setSoundEnabled, sfx, unlockAudio } from './sound';
 import { analyticsEnabled, trackEvent } from './analytics';
@@ -1056,6 +1056,26 @@ export class App implements GameUI {
   }
 
   /** 役・期待値の表示。専門用語にふりがなを付け、初心者向けの言い換えを添える */
+  /** 捨てる牌ごとのくらべ。行をタップするとその牌を選ぶ（もう一度タップで捨てる） */
+  private compareHtml(t: CompareTable): string {
+    const tenpai = t.mode === 'tenpai';
+    const title = tenpai
+      ? `${T.tenpai}のとり方くらべ<small>（${furigana('和了率')}の高い順）</small>`
+      : `${T.tenpai}の一歩手前<small>（${T.tenpai}になる牌が多い順）</small>`;
+    const rows = t.rows.map((r) => {
+      const sel = this.selected !== null && kindOf(this.selected) === kindOf(r.tile);
+      const tiles = r.tiles.map((w) => `<span class="cmp-tile ${w.remain === 0 ? 'zero' : ''}">${tileHtml(w.kind * 4 + 3)}<small>${w.remain}枚</small></span>`).join('');
+      const nums = tenpai
+        ? `<span class="cmp-nums"><b>約${Math.round(r.winProb! * 100)}%</b><small>${r.points ? `約${fmt(r.points)}点` : furigana('役なし')}</small></span>`
+        : `<span class="cmp-nums"><b>${r.total}枚</b></span>`;
+      return `<button class="cmp-row ${sel ? 'sel' : ''}" data-act="tile" data-tile="${r.tile}">
+          <span class="cmp-cut">${tileHtml(r.tile, { red: this.game?.isRed(r.tile) })}<small>を切る</small></span>
+          <span class="cmp-waits">${tiles}</span>${nums}</button>`;
+    }).join('');
+    const head = tenpai ? `<span>${T.machi}と残り枚数</span><span>${furigana('和了率')}・点数</span>` : `<span>引くと${T.tenpai}になる牌と残り枚数</span><span>合計</span>`;
+    return `<div class="compare"><div class="cmp-title">${title}</div><div class="cmp-head">${head}</div>${rows}</div>`;
+  }
+
   private outlookHtml(g: Game, o: Outlook, head: string, ukeire?: number): string {
     let shanten: string;
     if (o.shanten < 0) shanten = `<b>${T.agari}の形</b>`;
@@ -1100,6 +1120,11 @@ export class App implements GameUI {
         parts.push(this.outlookHtml(g, info.outlook, '最善の打牌をした場合：', info.ukeire));
       } else if (p.hand.length % 3 === 1) {
         parts.push(this.outlookHtml(g, outlook(g, 0, undefined, remainCounts(g, 0, a.open)), 'いまの手：'));
+      }
+      // 捨てる牌ごとのくらべ（テンパイのとり方が複数・テンパイの一歩手前）
+      if (pend && !this.riichiMode) {
+        const table = compareDiscards(g, pend.opts.discardable, 0, a.open);
+        if (table) parts.push(this.compareHtml(table));
       }
     }
 
