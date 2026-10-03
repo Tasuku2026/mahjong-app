@@ -47,10 +47,38 @@ interface NanikiruOption { tile: Tile; shanten: number; ukeire: number; kinds: K
 interface Nanikiru { hand: Tile[]; options: NanikiruOption[]; best: number; shanten: number }
 
 /** 1〜2向聴の14枚を作り、捨てる牌ごとの受け入れを数える（ほかの人の情報はなし） */
-function makeNanikiru(rand: () => number): Nanikiru {
-  for (let tries = 0; tries < 2000; tries++) {
-    const hand = shuffled(rand).slice(0, 14).sort((a, b) => a - b);
+/**
+ * ひとりぼっちの牌があるか（字牌が1枚だけ、または前後2つ以内に同じ種類の牌がない数牌が1枚だけ）。
+ * あると「それを切る」だけの、考えるところのない問題になるので出さない
+ */
+function hasIsolated(counts: number[]): boolean {
+  for (let k = 0; k < 34; k++) {
+    if (counts[k] !== 1) continue;
+    if (k >= 27) return true;
+    const base = Math.floor(k / 9) * 9;
+    const n = k - base;
+    let near = false;
+    for (let d = -2; d <= 2; d++) {
+      const m = n + d;
+      if (d !== 0 && m >= 0 && m <= 8 && counts[base + m] > 0) near = true;
+    }
+    if (!near) return true;
+  }
+  return false;
+}
+
+export function makeNanikiru(rand: () => number): Nanikiru {
+  for (let tries = 0; tries < 20000; tries++) {
+    // 牌の種類を2〜3色にしぼり、字牌はときどきだけ混ぜる（形の選択が問われる手になりやすい）
+    const suits = [0, 1, 2].sort(() => rand() - 0.5).slice(0, rand() < 0.7 ? 2 : 3);
+    const useHonor = rand() < 0.3;
+    const pool = shuffled(rand).filter((t) => {
+      const k = kindOf(t);
+      return k >= 27 ? useHonor : suits.includes(Math.floor(k / 9));
+    });
+    const hand = pool.slice(0, 14).sort((a, b) => a - b);
     const counts = toCounts(hand);
+    if (hasIsolated(counts)) continue;
     const s = calcShanten(counts, 0);
     if (s < 1 || s > 2) continue;
     const unseen = counts.map((c) => 4 - c);
@@ -71,8 +99,8 @@ function makeNanikiru(rand: () => number): Nanikiru {
     const best = Math.max(...options.map((o) => o.ukeire));
     const top = options.filter((o) => o.ukeire === best).length;
     const second = Math.max(...options.filter((o) => o.ukeire < best).map((o) => o.ukeire), 0);
-    // 正解が多すぎる問題・差がほとんどない問題は避ける
-    if (top > 2 || best - second < 2) continue;
+    // 正解が1つに決まり、2番目と少し差がある問題だけにする
+    if (top !== 1 || best - second < 2) continue;
     return { hand, options, best, shanten: s };
   }
   // まず起きないが、念のため
