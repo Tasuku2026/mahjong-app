@@ -102,7 +102,7 @@ export class App implements GameUI {
   private bubbles = new Map<number, string>();
   private overlay: { html: string; resolve: () => void } | null = null;
   /** おすすめ打牌のキャッシュ（手番ごとに1回計算） */
-  private hintCache: { pending: Pending; advice: Advice } | null = null;
+  private hintCache: { pending: Pending; open: boolean; advice: Advice } | null = null;
   /** この対局での自分の成績 */
   private tally: RoundTally = emptyTally();
   /** ふり返り: おすすめ（レベル10の判断）と同じ打牌をした回数（局・対局全体）と、直前の打牌の危険度 */
@@ -1092,15 +1092,16 @@ export class App implements GameUI {
     </button>`;
   }
 
-  /** おすすめ（手番・鳴き確認ごとにキャッシュ） */
+  /** おすすめ（手番・鳴き確認ごとにキャッシュ。カンニングを切り替えたら考え直す） */
   private hint(g: Game): Advice | null {
     const pend = this.pending;
     if (!pend) return null;
-    if (this.hintCache?.pending !== pend) {
+    const open = this.settings.assist.open;
+    if (this.hintCache?.pending !== pend || this.hintCache.open !== open) {
       const advice = pend.kind === 'turn'
-        ? adviseTurn(g, pend.opts)
-        : adviseCall(g, pend.tile, pend.from, pend.opts);
-      this.hintCache = { pending: pend, advice };
+        ? adviseTurn(g, pend.opts, 0, open)
+        : adviseCall(g, pend.tile, pend.from, pend.opts, 0, open);
+      this.hintCache = { pending: pend, open, advice };
     }
     return this.hintCache.advice;
   }

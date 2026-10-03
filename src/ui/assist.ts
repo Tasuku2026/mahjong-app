@@ -2,7 +2,7 @@
 import { CallAction, CallOptions, Game, TurnAction, TurnOptions } from '../core/game';
 import { Kind, Tile, kindOf, toCounts } from '../core/tiles';
 import { calcShanten } from '../core/shanten';
-import { CpuAgent, evaluateDiscards } from '../ai/cpu';
+import { CpuAgent, evaluateDiscards, LEVEL_ONI } from '../ai/cpu';
 import { dangerByOpponent, exactHits } from '../ai/danger';
 import { outlook, Outlook } from '../ai/value';
 
@@ -71,20 +71,23 @@ export function discardInfo(g: Game, tile: Tile, seat = 0, openHands = false): D
 }
 
 const hintAgent = new CpuAgent(10);
+/** カンニング中は、相手の手牌が見えるレベル鬼と同じ判断にする */
+const hintAgentOpen = new CpuAgent(LEVEL_ONI);
 
-/** おすすめ（レベル10のCPUと同じ判断） */
+/** おすすめ（ふだんはレベル10、カンニング中はレベル鬼のCPUと同じ判断） */
 export type Advice =
   | { kind: 'turn'; action: TurnAction; fold: boolean }
   | { kind: 'call'; action: CallAction };
 
-export function adviseTurn(g: Game, opts: TurnOptions, seat = 0): Advice {
-  const action = hintAgent.decideTurn(g, seat, opts);
-  const fold = action.type === 'discard' && !action.riichi && hintAgent.decideDiscard(g, seat, opts.discardable).fold;
+export function adviseTurn(g: Game, opts: TurnOptions, seat = 0, openHands = false): Advice {
+  const agent = openHands ? hintAgentOpen : hintAgent;
+  const action = agent.decideTurn(g, seat, opts);
+  const fold = action.type === 'discard' && !action.riichi && agent.decideDiscard(g, seat, opts.discardable).fold;
   return { kind: 'turn', action, fold };
 }
 
-export function adviseCall(g: Game, tile: Tile, from: number, opts: CallOptions, seat = 0): Advice {
-  return { kind: 'call', action: hintAgent.decideCall(g, seat, tile, from, opts) };
+export function adviseCall(g: Game, tile: Tile, from: number, opts: CallOptions, seat = 0, openHands = false): Advice {
+  return { kind: 'call', action: (openHands ? hintAgentOpen : hintAgent).decideCall(g, seat, tile, from, opts) };
 }
 
 // ---------------------------------------------------------------
