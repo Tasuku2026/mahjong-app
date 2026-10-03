@@ -1406,3 +1406,12 @@ button.cmp-row.sel { border-color: var(--accent); background: rgba(242, 201, 76,
 /* 教室の吹き出し: 長い用語が続いても画面からはみ出さない */
 .ls-bubble { min-width: 0; }
 .ls-bubble p, .ls-feedback p { overflow-wrap: anywhere; }
+
+/* 残り牌: 自分の和了牌（赤）・狙っている役に近づく牌（紫）を目立たせる */
+.r-cell.r-wait .tile { outline: 2px solid #ff5a4f; outline-offset: 0; }
+.r-cell.r-wait span { color: #ff8a80; }
+.r-cell.r-aim .tile { box-shadow: 0 0 0 2px #c58cff, 0 0 6px 1px rgba(197, 140, 255, .7); }
+.r-cell.r-aim span { color: #d9b3ff; }
+.r-legend { display: flex; gap: 10px; font-size: .68rem; margin-top: 3px; }
+.r-legend .lg-wait { color: #ff8a80; }
+.r-legend .lg-aim { color: #d9b3ff; }

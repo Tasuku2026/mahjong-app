@@ -644,12 +644,12 @@ function itemHtml(r: Row, open: Set<string>, kuitan: boolean, aim: string | null
 let cache: { key: string; rows: Row[] } | null = null;
 
 /** 役ごとの見込み（手牌・副露・残り巡目が変わったときだけ計算し直す） */
-function rows(g: Game, unseen: number[]): Row[] {
+function rows(g: Game, unseen: number[], tag = ''): Row[] {
   const p = g.players[0];
   const turnsLeft = Math.floor(g.live.length / 4);
   const key = [
     p.hand.slice().sort((a, b) => a - b).join(','), p.melds.map((m) => m.tiles.join('.')).join('|'),
-    turnsLeft, g.roundName, g.honba,
+    turnsLeft, g.roundName, g.honba, tag,
   ].join('/');
   if (cache?.key === key) return cache.rows;
   const c = context(g);
@@ -677,8 +677,8 @@ function foldHtml(key: string, title: string, list: Row[], open: Set<string>, ku
  * 役ナビの中身。
  * unseen: 自分から見えていない枚数、open: 開いている欄・役、closable: 閉じるボタンを出すか
  */
-export function yakuGuideHtml(g: Game, unseen: number[], open: Set<string>, closable: boolean, aim: string | null = null): string {
-  const list = rows(g, unseen);
+export function yakuGuideHtml(g: Game, unseen: number[], open: Set<string>, closable: boolean, aim: string | null = null, tag = ''): string {
+  const list = rows(g, unseen, tag);
   // 成立する確率の高い順。同じなら「あと何枚」の少ない順、それも同じなら点数の低い順
   const possible = list.filter((r) => !r.y.luck && Number.isFinite(r.e.need))
     .sort((a, b) => (b.e.prob - a.e.prob) || (a.e.need - b.e.need) || (a.y.han - b.y.han));
@@ -712,8 +712,37 @@ export function yakuPopHtml(name: string): string {
 }
 
 /** 狙っている役の「あと何枚」（不可能なら Infinity） */
-export function yakuNeed(g: Game, name: string, unseen: number[]): number {
-  return rows(g, unseen).find((r) => r.y.name === name)?.e.need ?? INF;
+export function yakuNeed(g: Game, name: string, unseen: number[], tag = ''): number {
+  return rows(g, unseen, tag).find((r) => r.y.name === name)?.e.need ?? INF;
+}
+
+/**
+ * 狙っている役に近づく牌の種類（残り牌の表で目立たせる）。
+ * 14枚のときは、その役のために一番よい牌を捨てた後で数える
+ */
+export function aimUsefulKinds(g: Game, name: string, unseen: number[]): Kind[] {
+  const fn = SH[name];
+  if (!fn) return [];
+  const { x, hc, cc } = sctx(g);
+  const p = g.players[0];
+  if (p.hand.length % 3 === 2) {
+    const t = aimDiscard(g, name, p.hand, unseen);
+    if (t === null) return [];
+    hc[kindOf(t)]--;
+    cc[kindOf(t)]--;
+  }
+  const s0 = fn(x, hc, cc);
+  if (!Number.isFinite(s0) || s0 >= 9) return [];
+  const out: Kind[] = [];
+  for (let k = 0; k < 34; k++) {
+    if (unseen[k] <= 0) continue;
+    hc[k]++;
+    cc[k]++;
+    if (fn(x, hc, cc) < s0) out.push(k);
+    hc[k]--;
+    cc[k]--;
+  }
+  return out;
 }
 
 /**

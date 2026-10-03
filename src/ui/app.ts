@@ -1,7 +1,8 @@
 import {
   Agent, CallAction, CallOptions, FinalStanding, Game, GameUI, RewindSignal, RoundResult, TurnAction, TurnOptions,
 } from '../core/game';
-import { Tile, kindOf, WIND_NAMES, doraFromIndicator } from '../core/tiles';
+import { Tile, Kind, kindOf, toCounts, WIND_NAMES, doraFromIndicator } from '../core/tiles';
+import { calcShanten, getWaits } from '../core/shanten';
 import { DEFAULT_RULES, Rules } from '../core/types';
 import { CpuAgent, LEVEL_KAMI, LEVEL_ONI, levelLabel } from '../ai/cpu';
 import { tileHtml, meldHtml } from './tileView';
@@ -10,7 +11,7 @@ import { T, furigana, furiganaKids, kindRuby, roundRuby, yakuRuby } from './term
 import { CHARAS, Chara, Expr, Talk, charaFor, pickLine } from './characters';
 import { LessonUI, loadProgress, saveProgress } from './lessons';
 import { PracticeUI, recordDex } from './practice';
-import { aimDiscard, yakuGuideHtml, yakuNeed, yakuPopHtml } from './yakuGuide';
+import { aimDiscard, aimUsefulKinds, yakuGuideHtml, yakuNeed, yakuPopHtml } from './yakuGuide';
 import { AssistSettings, DEFAULT_ASSIST, DangerMode, Advice, adviseCall, adviseTurn, discardInfo, handDanger, remainCounts, compareDiscards, CompareTable } from './assist';
 import { outlook, Outlook } from '../ai/value';
 import { setSoundEnabled, sfx, unlockAudio } from './sound';
@@ -1064,7 +1065,7 @@ export class App implements GameUI {
   /** 卓の左下の「◆狙い：◯◯」の札 */
   private aimTagHtml(g: Game): string {
     if (!this.aimYaku) return '';
-    const need = yakuNeed(g, this.aimYaku, remainCounts(g, 0, this.settings.assist.open));
+    const need = yakuNeed(g, this.aimYaku, remainCounts(g, 0, this.settings.assist.open), String(this.settings.assist.open));
     const state = !Number.isFinite(need) ? '<span class="aim-ng">もう成立しません</span>'
       : need === 0 ? '<span class="aim-ok">完成！</span>' : `あと${need}枚`;
     return `<div class="aim-tag"><span>◆狙い：${yakuRuby(this.aimYaku)} ${state}</span><button data-act="yaku-aim" data-yaku="${this.aimYaku}" aria-label="狙いを解除">×</button></div>`;
@@ -1077,7 +1078,7 @@ export class App implements GameUI {
   }
 
   private yakuHtml(g: Game, closable: boolean): string {
-    return yakuGuideHtml(g, remainCounts(g, 0, this.settings.assist.open), this.yakuOpenItems, closable, this.aimYaku);
+    return yakuGuideHtml(g, remainCounts(g, 0, this.settings.assist.open), this.yakuOpenItems, closable, this.aimYaku, String(this.settings.assist.open));
   }
 
   /** 卓の左上の、効果音のオン・オフ */
@@ -1207,14 +1208,32 @@ export class App implements GameUI {
     if (a.remain) {
       // 手牌公開中は、見えているCPUの手牌も差し引く
       const rem = remainCounts(g, 0, a.open);
-      const cell = (k: number) => `<div class="r-cell ${rem[k] === 0 ? 'zero' : ''}">${tileHtml(k * 4 + 3)}<span>${rem[k]}</span></div>`;
+      // 自分の待ち（テンパイのとき）と、役ナビで狙っている役に近づく牌を目立たせる
+      const waits = new Set(this.myWaits(g));
+      const aims = new Set(this.aimYaku ? aimUsefulKinds(g, this.aimYaku, rem) : []);
+      const cell = (k: number) => `<div class="r-cell ${rem[k] === 0 ? 'zero' : ''} ${waits.has(k) ? 'r-wait' : ''} ${aims.has(k) ? 'r-aim' : ''}">${tileHtml(k * 4 + 3)}<span>${rem[k]}</span></div>`;
       // 1段目: 萬子・筒子、2段目: 索子・字牌
       const rows = [[0, 18], [18, 34]].map(([s, e]) =>
         `<div class="r-row">${Array.from({ length: e - s }, (_, i) => cell(s + i)).join('')}</div>`).join('');
       // ほかの補助情報より先（パネルの一番上）に出す
-      parts.unshift(`<div class="remain-grid"><div class="r-title">残り牌</div><div class="r-rows">${rows}</div></div>`);
+      const legend = (waits.size ? `<span class="lg-wait">${furigana('■和了牌')}</span>` : '') + (aims.size ? '<span class="lg-aim">■狙いの役に近づく牌</span>' : '');
+      parts.unshift(`<div class="remain-grid"><div class="r-title">残り牌</div><div class="r-rows">${rows}${legend ? `<div class="r-legend">${legend}</div>` : ''}</div></div>`);
     }
     return parts.join('');
+  }
+
+  /** 自分の待ち（13枚でテンパイのとき。14枚なら選んでいる牌を捨てた後） */
+  private myWaits(g: Game): Kind[] {
+    const p = g.players[0];
+    let hand = p.hand;
+    if (hand.length % 3 === 2) {
+      if (this.selected === null) return [];
+      hand = hand.slice();
+      hand.splice(hand.indexOf(this.selected), 1);
+    }
+    const counts = toCounts(hand);
+    if (calcShanten(counts, p.melds.length) !== 0) return [];
+    return getWaits(counts, p.melds.length);
   }
 
   private myHandHtml(g: Game): string {
