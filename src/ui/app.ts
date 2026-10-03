@@ -1077,7 +1077,7 @@ export class App implements GameUI {
           <span>${T.agari}時の点数 <b>${o.points ? `約${fmt(o.points)}点` : '—'}</b>${riichiNote}</span>
           <span>${furigana('和了率')} <b>約${Math.round(o.winProb * 100)}%</b><small>（あがれる確率）</small></span>
           <span>期待値 <b>約${fmt(Math.round(o.ev / 100) * 100)}点</b><small>（点数×${furigana('和了率')}）</small></span>
-          ${ukeire !== undefined ? `<span>${T.ukeire} <b>${ukeire}枚</b><small>（手が進む牌の残り）</small></span>` : ''}
+          ${ukeire !== undefined ? `<span>${T.ukeire} <b>${ukeire}枚</b><small>（引くとテンパイに近づく牌の残り）</small></span>` : ''}
         </div>
         ${waits}
       </div>`;
