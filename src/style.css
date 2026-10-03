@@ -1304,6 +1304,28 @@ button.danger-solid { background: #b8433c; border-color: #b8433c; }
 
 /* 見込み: カンニング中の印（カンニングボタンと同じ紫） */
 .o-open { display: block; color: #c58cff; font-size: .72rem; font-weight: 600; }
-/* ドラ表示牌の下に、実際のドラ（表示牌の次の牌）を出す */
-.round-info .dora-is { --w: calc(var(--S) * 0.042); display: flex; align-items: center; gap: 2px; margin-top: 4px; white-space: nowrap; }
-.round-info .dora-is span { color: #f2c94c; font-weight: 800; font-size: .85em; margin-right: 2px; }
+/* ドラ表示牌の右に、矢印と実際のドラ（表示牌の次の牌） */
+.round-info .dora { align-items: center; }
+.round-info .dora-arrow { color: #f2c94c; font-weight: 800; margin: 0 2px; font-size: .9em; }
+.round-info .dora-to { color: #f2c94c; font-weight: 800; margin-left: 2px; }
+
+/* 補助ボタンを少し大きく（押し分けやすく） */
+.tools { gap: 2px; }
+.tools button.chip,
+.tools button.chip[data-act="danger"] { height: 24px; font-size: .7rem; width: 72px; letter-spacing: 0; }
+.tools .tool-row { gap: 4px; }
+.tools .tool-row button.help { width: 22px; height: 22px; font-size: .68rem; }
+
+/* 待った: 目立つように金色のふちと文字、少し大きく */
+.undo-btn {
+  height: 32px;
+  padding: 0 12px 0 9px;
+  font-size: .85rem;
+  font-weight: 800;
+  color: var(--accent);
+  background: rgba(0, 0, 0, .45);
+  border: 1.5px solid var(--accent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .35);
+}
+.undo-btn svg { width: 18px; height: 18px; }
+.undo-btn:disabled { opacity: .45; }

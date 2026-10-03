@@ -873,10 +873,9 @@ export class App implements GameUI {
     return `
       <div class="round-info">
         <div class="round">${roundRuby(g.roundName)}<small>${g.honba}${furigana('本場')}</small></div>
-        <div class="label">${furigana('ドラ表示牌')}</div>
-        <div class="dora">${g.doraIndicators.map((t) => tileHtml(t, { red: g.isRed(t) })).join('')}${
-          '<div class="tile back"></div>'.repeat(5 - g.doraCount)}</div>
-        <div class="dora-is"><span>ドラ</span>${g.doraIndicators.map((t) => tileHtml(doraFromIndicator(kindOf(t)) * 4 + 3, { classes: ['is-dora'] })).join('')}</div>
+        <div class="label">${furigana('ドラ表示牌')}<span class="dora-to">→ドラ</span></div>
+        <div class="dora">${g.doraIndicators.map((t) => tileHtml(t, { red: g.isRed(t) })).join('')}<span class="dora-arrow">→</span>${
+          g.doraIndicators.map((t) => tileHtml(doraFromIndicator(kindOf(t)) * 4 + 3, { classes: ['is-dora'] })).join('')}</div>
       </div>
       <div class="center">
         <div class="remain">残り <b>${g.live.length}</b></div>
