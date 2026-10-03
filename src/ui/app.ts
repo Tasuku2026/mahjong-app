@@ -12,7 +12,7 @@ import { CHARAS, Chara, Expr, Talk, charaFor, pickLine } from './characters';
 import { LessonUI, loadProgress, saveProgress } from './lessons';
 import { PracticeUI, recordDex } from './practice';
 import { aimDiscard, aimUsefulKinds, yakuGuideHtml, yakuNeed, yakuPopHtml } from './yakuGuide';
-import { AssistSettings, DEFAULT_ASSIST, DangerMode, Advice, adviseCall, adviseTurn, discardInfo, handDanger, remainCounts, compareDiscards, CompareTable } from './assist';
+import { AssistSettings, DEFAULT_ASSIST, DangerMode, Advice, adviseCall, adviseTurn, discardInfo, handDanger, remainCounts, compareDiscards, CompareTable, compareCalls, CallCompareRow } from './assist';
 import { outlook, Outlook } from '../ai/value';
 import { setSoundEnabled, sfx, unlockAudio } from './sound';
 import { analyticsEnabled, trackEvent } from './analytics';
@@ -1134,6 +1134,37 @@ export class App implements GameUI {
   }
 
   /** 役・期待値の表示。専門用語にふりがなを付け、初心者向けの言い換えを添える */
+  /** 鳴くかどうかのくらべ（選んだ場合ごとに、テンパイまでの枚数・受け入れ・和了率・点数） */
+  private callCompareHtml(g: Game, pend: Extract<Pending, { kind: 'call' }>): string {
+    const rows = compareCalls(g, pend.tile, pend.from, pend.opts, 0, this.settings.assist.open, pend);
+    const best = Math.max(...rows.filter((r) => r.type !== 'ron').map((r) => r.winProb));
+    const label = (r: CallCompareRow) => {
+      switch (r.type) {
+        case 'ron': return 'ロン';
+        case 'pass': return 'スキップ';
+        case 'pon': return `ポン${this.miniTiles(g, r.tiles!)}`;
+        case 'chi': return `チー${this.miniTiles(g, r.tiles!)}`;
+        case 'minkan': return 'カン';
+      }
+    };
+    const body = rows.map((r) => {
+      if (r.type === 'ron') {
+        return `<div class="cc-row best"><span class="cc-name">ロン</span><span class="cc-main"><b>${furigana('和了')}！</b></span><span class="cc-nums"><b>${fmt(r.points)}点</b></span></div>`;
+      }
+      const dist = r.shanten <= 0 ? `<b>${T.tenpai}</b>` : `${T.tenpai}まで<b>あと${r.shanten}枚</b>`;
+      const after = r.discard !== undefined ? `<small>${kindRuby(kindOf(r.discard))}を切った後</small>` : '';
+      const nums = r.hasYaku
+        ? `<b>約${Math.round(r.winProb * 100)}%</b><small>${r.points ? `約${fmt(r.points)}点` : ''}</small>`
+        : `<b class="warn">${furigana('役なし')}</b><small>${furigana('和了れない')}</small>`;
+      return `<div class="cc-row ${r.hasYaku && r.winProb === best && best > 0 ? 'best' : ''}">
+          <span class="cc-name">${label(r)}</span>
+          <span class="cc-main"><span>${dist}</span><small>${furigana('受け入れ')} ${r.ukeire}枚</small>${after}</span>
+          <span class="cc-nums">${nums}</span></div>`;
+    }).join('');
+    return `<div class="compare"><div class="cmp-title">鳴くとどうなる？<small>（${furigana('和了率')}がいちばん高いものに印）</small></div>
+      <div class="cmp-head"><span></span><span>${T.tenpai}まで・${furigana('受け入れ')}</span><span>${furigana('和了率')}・点数</span></div>${body}</div>`;
+  }
+
   /** 捨てる牌ごとのくらべ。行をタップするとその牌を選ぶ（もう一度タップで捨てる） */
   private compareHtml(t: CompareTable): string {
     const tenpai = t.mode === 'tenpai';
@@ -1199,6 +1230,9 @@ export class App implements GameUI {
       } else if (p.hand.length % 3 === 1) {
         parts.push(this.outlookHtml(g, outlook(g, 0, undefined, remainCounts(g, 0, a.open)), 'いまの手：'));
       }
+      // 鳴くかどうかのくらべ
+      const cp = this.pending;
+      if (cp?.kind === 'call') parts.push(this.callCompareHtml(g, cp));
       // 捨てる牌ごとのくらべ（テンパイのとり方が複数・テンパイの一歩手前）
       if (pend && !this.riichiMode) {
         const table = compareDiscards(g, pend.opts.discardable, 0, a.open);

@@ -1415,3 +1415,16 @@ button.cmp-row.sel { border-color: var(--accent); background: rgba(242, 201, 76,
 .r-legend { display: flex; gap: 10px; font-size: .68rem; margin-top: 3px; }
 .r-legend .lg-wait { color: #ff8a80; }
 .r-legend .lg-aim { color: #d9b3ff; }
+
+/* 見込み: 鳴くかどうかのくらべ */
+.cc-row { display: flex; align-items: center; gap: 8px; padding: 6px; margin-top: 4px; border-radius: 8px; background: rgba(0, 0, 0, .22); border: 1px solid transparent; }
+.cc-row.best { border-color: var(--accent); background: rgba(242, 201, 76, .12); }
+.cc-name { flex: none; width: 84px; font-weight: 800; display: flex; align-items: center; gap: 2px; }
+.cc-name .mini { --w: 15px; display: inline-flex; margin-left: 2px; }
+.cc-main { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.35; font-size: .85rem; }
+.cc-main b { color: var(--text); margin-left: 2px; }
+.cc-main small { color: var(--muted); font-size: .7rem; }
+.cc-nums { flex: none; display: flex; flex-direction: column; align-items: flex-end; line-height: 1.25; }
+.cc-nums b { color: var(--accent); }
+.cc-nums b.warn { color: #ff8a80; font-size: .85rem; }
+.cc-nums small { color: var(--muted); font-size: .68rem; }

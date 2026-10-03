@@ -5,6 +5,7 @@ import { calcShanten } from '../core/shanten';
 import { CpuAgent, evaluateDiscards, LEVEL_ONI } from '../ai/cpu';
 import { dangerByOpponent, exactHits } from '../ai/danger';
 import { outlook, Outlook } from '../ai/value';
+import { ronPoints } from '../core/yaku';
 
 export type DangerMode = 'off' | 'est' | 'true';
 
@@ -169,4 +170,86 @@ export function compareDiscards(g: Game, candidates: Tile[], seat = 0, openHands
   }
   compareCache = { key, table };
   return table;
+}
+
+// ---------------------------------------------------------------
+// 見込み: 鳴くかどうかのくらべ（スキップ・ポン・チー・カン）
+// ---------------------------------------------------------------
+
+export interface CallCompareRow {
+  type: 'pass' | 'pon' | 'chi' | 'minkan' | 'ron';
+  /** ポン・チーで使う手牌の2枚（ボタンと同じ並び） */
+  tiles?: Tile[];
+  /** 鳴いた後に捨てるとよい牌 */
+  discard?: Tile;
+  shanten: number;
+  ukeire: number;
+  winProb: number;
+  points: number;
+  hasYaku: boolean;
+}
+
+/** 13枚形（または鳴いた後の形）で、引くと向聴数が下がる牌の残り枚数 */
+function ukeireOf(hand: Tile[], meldCount: number, unseen: number[]): number {
+  const c = toCounts(hand);
+  const s = calcShanten(c, meldCount);
+  let u = 0;
+  for (let k = 0; k < 34; k++) {
+    if (unseen[k] <= 0 || c[k] >= 4) continue;
+    c[k]++;
+    if (calcShanten(c, meldCount) < s) u += unseen[k];
+    c[k]--;
+  }
+  return u;
+}
+
+let callCache: { key: unknown; open: boolean; rows: CallCompareRow[] } | null = null;
+
+/**
+ * 鳴きの確認が出たとき、選んだ場合ごとの見通し。
+ * ポン・チーは、鳴いた後にいちばん良い牌を捨てた形で比べる（鳴いた牌と同じ牌は捨てられないものとする）
+ */
+export function compareCalls(g: Game, tile: Tile, from: number, opts: CallOptions, seat = 0, openHands = false, key: unknown = null): CallCompareRow[] {
+  if (key !== null && callCache && callCache.key === key && callCache.open === openHands) return callCache.rows;
+  const p = g.players[seat];
+  const unseen = remainCounts(g, seat, openHands);
+  const rows: CallCompareRow[] = [];
+  const row = (type: CallCompareRow['type'], hand13: Tile[], extra: Partial<CallCompareRow> = {}) => {
+    const o = outlook(g, seat, hand13, unseen);
+    rows.push({ type, shanten: o.shanten, ukeire: ukeireOf(hand13, p.melds.length, unseen), winProb: o.winProb, points: o.points, hasYaku: o.winProb > 0 || o.yaku.some((n) => !n.startsWith('ドラ')), ...extra });
+  };
+  if (opts.canRon && opts.ronResult) {
+    rows.push({ type: 'ron', shanten: -1, ukeire: 0, winProb: 1, points: ronPoints(opts.ronResult.base, seat === g.dealer), hasYaku: true });
+  }
+  row('pass', p.hand);
+  // 鳴いた形をいったん作って計算し、すぐに元に戻す（画面には出さない）
+  const simulate = (type: 'pon' | 'chi' | 'minkan', use: Tile[]) => {
+    const saveHand = p.hand;
+    const saveMelds = p.melds;
+    try {
+      const rest = p.hand.filter((t) => !use.includes(t));
+      p.melds = [...saveMelds, { type, tiles: [...use, tile], calledTile: tile, from }];
+      if (type === 'minkan') {
+        p.hand = rest;
+        row(type, rest);
+        return;
+      }
+      const cands = rest.filter((t) => kindOf(t) !== kindOf(tile));
+      const evals = evaluateDiscards(rest, p.melds.length, unseen, cands.length ? cands : rest);
+      evals.sort((a, b) => (a.shanten - b.shanten) || (b.ukeire - a.ukeire));
+      const best = evals[0];
+      const hand10 = rest.slice();
+      hand10.splice(hand10.indexOf(best.tile), 1);
+      p.hand = hand10;
+      row(type, hand10, { tiles: use, discard: best.tile });
+    } finally {
+      p.hand = saveHand;
+      p.melds = saveMelds;
+    }
+  };
+  for (const use of opts.pon) simulate('pon', use);
+  for (const use of opts.chi) simulate('chi', use);
+  if (opts.minkan) simulate('minkan', opts.minkan);
+  callCache = { key, open: openHands, rows };
+  return rows;
 }
