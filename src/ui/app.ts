@@ -9,6 +9,7 @@ import { helpButton, helpDialogHtml } from './help';
 import { T, furigana, furiganaKids, kindRuby, roundRuby, yakuRuby } from './terms';
 import { CHARAS, Chara, Expr, Talk, charaFor, pickLine } from './characters';
 import { LessonUI, loadProgress, saveProgress } from './lessons';
+import { PracticeUI, recordDex } from './practice';
 import { aimDiscard, yakuGuideHtml, yakuNeed, yakuPopHtml } from './yakuGuide';
 import { AssistSettings, DEFAULT_ASSIST, DangerMode, Advice, adviseCall, adviseTurn, discardInfo, handDanger, remainCounts, compareDiscards, CompareTable } from './assist';
 import { outlook, Outlook } from '../ai/value';
@@ -103,10 +104,14 @@ export class App implements GameUI {
   private hintCache: { pending: Pending; advice: Advice } | null = null;
   /** この対局での自分の成績 */
   private tally: RoundTally = emptyTally();
+  /** ふり返り: おすすめ（レベル10の判断）と同じ打牌をした回数（局・対局全体）と、直前の打牌の危険度 */
+  private review = { match: 0, total: 0, roundMatch: 0, roundTotal: 0, last: null as { tile: Tile; danger: number; safest: number } | null };
   /** 役ナビウインドウを開いているか（画面が狭いときのみ。対局は止めない） */
   private yakuOpen = false;
   /** まーじゃん教室 */
   private lessons: LessonUI;
+  /** 練習（何切る・点数計算・役の図鑑） */
+  private practice: PracticeUI;
   /** 卒業対局中か（1回和了ったら卒業） */
   private lessonGame = false;
   /** キャラクターの吹き出しと表情（席ごと） */
@@ -128,6 +133,7 @@ export class App implements GameUI {
 
   constructor(root: HTMLElement) {
     this.root = root;
+    this.practice = new PracticeUI(root, { backToTop: () => this.showStart() });
     this.lessons = new LessonUI(root, {
       startGraduation: () => { void this.startGraduation(); },
       backToTop: () => this.showStart(),
@@ -180,6 +186,13 @@ export class App implements GameUI {
         <h1>ひとり麻雀</h1>
         <p class="sub">CPU 3人と対局する4人打ちリーチ麻雀</p>
         <button class="lesson-banner" data-act="lesson">${charaFor(9).face('happy')}<span><b>まーじゃん${furiganaKids('教室')}</b><small>${furiganaKids('ルールを知らない人はここから！')}${loadProgress().graduated ? `（${furiganaKids('卒業')}ずみ）` : ''}</small></span></button>
+        <section class="card practice-card">
+          <h2>練習${helpButton('practice')}</h2>
+          <div class="practice-btns">
+            <button class="secondary" data-act="pr-nk-daily">今日の何切る${PracticeUI.dailyDone() ? '<small>（解いた）</small>' : ''}</button>
+            <button class="secondary" data-act="pr-sq-new">${furigana('点数計算')}の練習</button>
+          </div>
+        </section>
         <div class="start-grid">
         <section class="card">
           <h2>対局</h2>
@@ -213,7 +226,10 @@ export class App implements GameUI {
         </section>
         <button class="primary big" data-act="start">対局開始</button>
         <button class="big secondary" data-act="stats">戦績を見る</button>
-        <button class="big secondary" data-act="charas">キャラ図鑑</button>
+        <div class="dex-btns">
+          <button class="big secondary" data-act="charas">キャラ図鑑</button>
+          <button class="big secondary" data-act="pr-dex">${furigana('役')}の図鑑</button>
+        </div>
         ${analyticsEnabled() ? '<p class="privacy">利用状況の把握のため、アクセス解析（GoatCounter）を使用しています。Cookieや個人を特定する情報は使用しません。</p>' : ''}
       </div>`;
   }
@@ -468,6 +484,7 @@ export class App implements GameUI {
     gameRef = g;
     this.game = g;
     this.tally = emptyTally();
+    this.review = { match: 0, total: 0, roundMatch: 0, roundTotal: 0, last: null };
     this.animatedDiscard = '';
     trackEvent('game-start', '対局開始');
     this.speech.clear();
@@ -538,7 +555,14 @@ export class App implements GameUI {
           banner = `<div class="graduate-banner">${charaFor(9).face('happy')}<div><b>🎓 ${furiganaKids('卒業おめでとう！')}</b><p>${furiganaKids('はじめての和了じゃ！ これで、まーじゃん教室は卒業じゃ。このまま対局を続けてもいいし、トップ画面で好きな相手を選んで遊ぶのもよいぞ。')}</p></div></div>`;
         }
       }
+      if (myWin) {
+        const fresh = recordDex(myWin.result);
+        if (fresh.length) banner += `<div class="dex-new">📖 ${furigana('役の図鑑に新しく登録')}：${fresh.map((n) => yakuRuby(n)).join('・')}</div>`;
+      }
       this.overlay = { html: banner + this.resultHtml(g, r), resolve };
+      this.review.roundMatch = 0;
+      this.review.roundTotal = 0;
+      this.review.last = null;
       this.render();
       if (r.type === 'win' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         this.countUp();
@@ -560,10 +584,51 @@ export class App implements GameUI {
   private resolveTurn(a: TurnAction): void {
     const p = this.pending;
     if (!p || p.kind !== 'turn') return;
+    if (a.type === 'discard' && this.game) this.recordDiscard(this.game, a.tile);
     this.pending = null;
     this.selected = null;
     this.riichiMode = false;
     p.resolve(a);
+  }
+
+  /** ふり返り用: おすすめと同じ打牌だったか、捨てた牌の危険度（予想）を記録 */
+  private recordDiscard(g: Game, tile: Tile): void {
+    const me = g.players[0];
+    if (me.riichi) return; // リーチ後は選べないので数えない
+    try {
+      const adv = this.hint(g);
+      if (adv?.kind === 'turn' && adv.action.type === 'discard') {
+        const ok = kindOf(adv.action.tile) === kindOf(tile);
+        this.review.total++;
+        this.review.roundTotal++;
+        if (ok) {
+          this.review.match++;
+          this.review.roundMatch++;
+        }
+      }
+      const d = handDanger(g, 'est');
+      const danger = d.get(kindOf(tile))?.value ?? 0;
+      const safest = Math.min(...[...d.values()].map((x) => x.value));
+      this.review.last = { tile, danger, safest };
+    } catch {
+      /* ふり返りは失敗しても対局を止めない */
+    }
+  }
+
+  /** 局の結果に出す、ふり返り */
+  private reviewHtml(r: RoundResult): string {
+    const v = this.review;
+    const lines: string[] = [];
+    if (v.roundTotal > 0) lines.push(`この局、おすすめと同じ牌を切ったのは <b>${v.roundMatch} / ${v.roundTotal}回</b>`);
+    const dealt = r.type === 'win' && r.wins.some((w) => w.from === 0);
+    if (dealt && v.last) {
+      const pct = (x: number) => `約${Math.max(1, Math.round(x * 100))}%`;
+      lines.push(`${furigana('振り込んだ')}${kindRuby(kindOf(v.last.tile))}${furigana('の危険度（予想）は')} <b>${pct(v.last.danger)}</b>`
+        + furigana(v.last.safest < v.last.danger - 0.03 ? `。手の中でいちばん安全な牌なら ${pct(v.last.safest)} でした`
+          : v.last.danger < 0.05 ? '。予想ではほぼ安全な牌で、運が悪かったといえます' : '。ほかの牌も同じくらい危険でした'));
+    }
+    if (!lines.length) return '';
+    return `<div class="review"><b class="review-title">ふり返り</b>${lines.map((l) => `<p>${l}</p>`).join('')}</div>`;
   }
 
   private resolveCall(a: CallAction): void {
@@ -594,6 +659,10 @@ export class App implements GameUI {
     const act = el.dataset.act!;
     if (act.startsWith('ls-')) {
       this.lessons.handle(act, el);
+      return;
+    }
+    if (act.startsWith('pr-')) {
+      this.practice.handle(act, el);
       return;
     }
     const pend = this.pending;
@@ -1315,6 +1384,7 @@ export class App implements GameUI {
         <div class="result-title">${roundRuby(g.roundName)} ${g.honba}${furigana('本場')}</div>
         ${body}
         ${this.resultCommentHtml(g, r)}
+        ${this.reviewHtml(r)}
         <table class="scores">${scores}</table>
         <button class="primary" data-act="next">次へ</button>
       </div>`;
@@ -1348,6 +1418,7 @@ export class App implements GameUI {
             <h2 class="rank rank${myRank}">あなたは ${myRank}位</h2>
             <table class="scores">${rows}</table>
             ${this.finalCommentsHtml(g, st)}
+            ${this.review.total ? `<div class="review"><b class="review-title">ふり返り</b><p>おすすめと同じ牌を切った割合 <b>${Math.round((this.review.match / this.review.total) * 100)}%</b>（${this.review.match} / ${this.review.total}回）</p></div>` : ''}
             <div class="btns">
               ${this.lessonGame
     ? `${loadProgress().graduated ? '' : '<button class="primary" data-act="ls-graduate">もう一度卒業対局</button>'}<button class="${loadProgress().graduated ? 'primary' : ''}" data-act="lesson">教室に戻る</button><button data-act="title">トップ画面へ</button>`
