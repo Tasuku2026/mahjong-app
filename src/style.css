@@ -1440,3 +1440,12 @@ button.cmp-row.sel { border-color: var(--accent); background: rgba(242, 201, 76,
 .cc-nums { flex-direction: row; align-items: baseline; gap: 4px; }
 /* 残り牌: 萬子・筒子・索子・字牌の区切りに少しすき間 */
 .r-sep { flex: none; width: calc(var(--w) * .45); }
+
+/* ---------------- KawaiiCloud のアプリ一覧ボタン（いちばん上の細い帯。main.ts・kcmenu.ts） ---------------- */
+.kc-bar { max-width: 460px; margin: 0 auto; padding: 8px 12px 0; }
+.kc-btn { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; border: 1px solid rgba(255, 255, 255, .25); border-radius: 20px; background: rgba(255, 255, 255, .08); color: var(--muted); font-size: .8rem; font-weight: 700; }
+.kc-btn img { width: 28px; height: 28px; border-radius: 50%; }
+.kc-btn:hover, .kc-btn[aria-expanded='true'] { background: rgba(255, 255, 255, .16); }
+.kc-caret { font-size: .7rem; }
+/* 対局中は帯ごと隠す */
+body.kc-ingame .kc-bar { display: none; }

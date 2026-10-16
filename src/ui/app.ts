@@ -95,7 +95,15 @@ class HumanAgent implements Agent {
 export class App implements GameUI {
   private root: HTMLElement;
   private settings: Settings;
-  private game: Game | null = null;
+  private gameValue: Game | null = null;
+  /** 対局中のゲーム。対局中は body に kc-ingame を付け、KawaiiCloud のアプリ一覧ボタンを隠す（kcmenu.ts） */
+  private get game(): Game | null {
+    return this.gameValue;
+  }
+  private set game(g: Game | null) {
+    this.gameValue = g;
+    document.body.classList.toggle('kc-ingame', g !== null);
+  }
   private pending: Pending | null = null;
   private selected: Tile | null = null;
   private riichiMode = false;
@@ -168,6 +176,11 @@ export class App implements GameUI {
   // ------------------------------------------------------------------
   // スタート画面
   // ------------------------------------------------------------------
+
+  /** 対局中か（KawaiiCloud のアプリ一覧メニューを開かない） */
+  inGame(): boolean {
+    return this.game !== null;
+  }
 
   showStart(): void {
     this.game = null;
