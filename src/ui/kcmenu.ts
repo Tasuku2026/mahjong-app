@@ -18,8 +18,8 @@ export const KC_SITE = 'https://kawaiicloud.pages.dev';
 
 // 名簿が読めないときの控え
 const FALLBACK: KcApp[] = [
-  { id: 'iqtest', name: 'IQテスト', desc: '5種目でIQの目安と得意・不得意がわかる', url: 'https://kawaiicloud-iqtest.pages.dev/', icon: `${KC_SITE}/icons/iqtest.svg` },
-  { id: 'mahjong', name: 'ひとり麻雀', desc: 'CPU 3人と打つ4人打ちリーチ麻雀', url: 'https://kawaiicloud-mahjong.pages.dev/', icon: `${KC_SITE}/icons/mahjong.svg` },
+  { id: 'iqtest', name: 'IQテスト', desc: '5種目でIQの目安と得意・不得意がわかる', url: 'https://kawaiicloud-iqtest.pages.dev/', icon: `${KC_SITE}/icons/iqtest.png?v=3` },
+  { id: 'mahjong', name: 'ひとり麻雀', desc: 'CPU 3人と打つ4人打ちリーチ麻雀', url: 'https://kawaiicloud-mahjong.pages.dev/', icon: `${KC_SITE}/icons/mahjong.svg?v=2` },
 ];
 
 interface Options {
