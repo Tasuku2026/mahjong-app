@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <link rel="canonical" href="https://kawaiicloud-mahjong.pages.dev/" />
+    <title>ひとり麻雀は引っ越しました</title>
+    <style>
+      body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #0d4a33; color: #fff; font-family: 'Hiragino Sans', 'Yu Gothic UI', Meiryo, sans-serif; text-align: center; padding: 24px; box-sizing: border-box; }
+      a { color: #ffe08a; font-weight: 700; }
+      p { line-height: 1.8; }
+    </style>
+  </head>
+  <body>
+    <div>
+      <h1>ひとり麻雀は引っ越しました</h1>
+      <p>新しいアドレスへ移動しています…<br />戦績や設定もそのまま引き継ぎます。</p>
+      <p>移動しないときは、こちらを押してください：<br /><a id="go" href="https://kawaiicloud-mahjong.pages.dev/">https://kawaiicloud-mahjong.pages.dev/</a></p>
+    </div>
+    <script>
+      // 旧アドレス（GitHub Pages）に残っている「ひとり麻雀」の保存データを、新しいアドレスへ渡す。
+      // データはアドレスの「#」より後ろに入れるので、どこのサーバーにも送られない（受け取る側: src/ui/moved.ts）
+      (async () => {
+        const NEW = 'https://kawaiicloud-mahjong.pages.dev/';
+        let url = NEW;
+        try {
+          const data = {};
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            // 同じアドレス（tasuku2026.github.io）のほかのアプリのデータは渡さない
+            if (k && k.startsWith('mahjong-')) data[k] = localStorage.getItem(k);
+          }
+          if (Object.keys(data).length) {
+            let bytes = new TextEncoder().encode(JSON.stringify(data));
+            let kind = 'j.';
+            if (typeof CompressionStream === 'function') {
+              const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip'));
+              bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+              kind = 'g.';
+            }
+            let bin = '';
+            for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+            const b64 = btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+            url = NEW + '#move=' + kind + b64;
+          }
+        } catch (e) {
+          // 読み出せないときは、データなしで移る
+        }
+        document.getElementById('go').href = url;
+        location.replace(url);
+      })();
+    </script>
+  </body>
+</html>

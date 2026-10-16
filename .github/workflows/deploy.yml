@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages
+name: Deploy redirect page to GitHub Pages
 
 on:
   push:
@@ -18,17 +18,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      # アプリ本体は Cloudflare Pages（https://kawaiicloud-mahjong.pages.dev）に引っ越した。
+      # GitHub Pages には、保存データを持って新しいアドレスへ移る案内ページ（redirect/）だけを置く
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npx vitest run tests/core.test.ts
-      - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: redirect
 
   deploy:
     needs: build

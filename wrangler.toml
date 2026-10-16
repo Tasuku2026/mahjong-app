@@ -1,0 +1,5 @@
+# Cloudflare Pages の設定（KawaiiCloud Labs の Cloudflare アカウントで公開する）
+# 公開: npm test → npm run build → npx wrangler pages deploy dist --project-name kawaiicloud-mahjong --branch main
+name = "kawaiicloud-mahjong"
+compatibility_date = "2026-10-01"
+pages_build_output_dir = "dist"

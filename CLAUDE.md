@@ -2,7 +2,9 @@
 
 CPU 3人と対局する4人打ちリーチ麻雀の Web アプリ。ブラウザだけで動く静的サイト（Vite + TypeScript、フレームワークなし）。
 
-- 公開: https://tasuku2026.github.io/mahjong-app/ （`main` に push すると GitHub Actions で GitHub Pages に自動デプロイ）
+- 公開: **https://kawaiicloud-mahjong.pages.dev** （2026-10-16 に引っ越し。運営者名「KawaiiCloud Labs」の Cloudflare アカウントで、IQテスト（iq-test-app）と同じアカウント。Cloudflare Pages のプロジェクト名 kawaiicloud-mahjong）
+  - 公開のしかた: `npm test` → `npm run build` → `npx wrangler pages deploy dist --project-name kawaiicloud-mahjong --branch main`。**公開する前に依頼者に確認する**（push しても公開されない）
+  - 旧アドレス https://tasuku2026.github.io/mahjong-app/ には、`redirect/` の案内ページだけを置いている（`main` に push すると GitHub Actions で GitHub Pages に上がる）。開くと、旧アドレスに保存されていた `mahjong-` で始まるデータ（戦績・設定・教室の進み具合など）を `#move=…` に入れて新しいアドレスへ移る。受け取る側は `src/ui/moved.ts`（`main.ts` で App より先に取り込む）。保存データの名前を増やすときは `mahjong-` で始める
 - 利用者はスマホ中心。画面は 375×812 前後のスマホ幅で崩れないことを必ず確認する
 - 依頼者は日本語で話す麻雀好きの非エンジニア。説明は日本語・専門用語は控えめに
 
@@ -28,5 +30,5 @@ npx vite-node scripts/strength.ts 40 1,4,7,10   # CPUレベル別の成績比較
 - 画面に出す麻雀用語にはふりがなを付ける（`src/ui/terms.ts` の `furigana()` / `kindRuby()` を通す。新しい用語は用語集 GLOSSARY に追加）
 - 設定項目を増やしたら `help.ts` に初心者向けの説明（？ボタン）も追加する
 - CPU の思考を変えたら `scripts/strength.ts` でレベルの強さの順番が崩れていないか確認する
-- 変更後は `npm test` と `npm run build` を通してから `main` に push する（push = 公開）
+- 変更後は `npm test` と `npm run build` を通す。公開は上の「公開のしかた」で、依頼者に確認してから
 - 開発時のみ `window.__app` から App を操作できる（`settings.speed` を小さくすると自動対局が速い）

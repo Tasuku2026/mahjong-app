@@ -11,7 +11,13 @@ npm test        # テスト
 npm run build   # dist/ に公開用ファイルを出力
 ```
 
-`main` ブランチに push すると GitHub Actions で GitHub Pages に公開されます。
+公開先は https://kawaiicloud-mahjong.pages.dev （Cloudflare Pages）です。
+
+```bash
+npx wrangler pages deploy dist --project-name kawaiicloud-mahjong --branch main
+```
+
+旧アドレス（GitHub Pages）には、新しいアドレスへ移る案内ページ（`redirect/`）だけを置いています。
 
 ## CPUの強さの確認
 
