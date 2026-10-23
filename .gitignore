@@ -1,5 +1,2 @@
 node_modules
 dist
-
-# 苦手なもの確認シート（/nigate/）は公開サイトにだけ載せ、git には入れない
-public/nigate/

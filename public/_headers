@@ -4,9 +4,3 @@
   Referrer-Policy: strict-origin-when-cross-origin
   X-Frame-Options: DENY
   Permissions-Policy: camera=(), microphone=(), geolocation=()
-
-# 苦手なもの確認シート（/nigate/）は検索に出さない
-/nigate
-  X-Robots-Tag: noindex, nofollow
-/nigate/*
-  X-Robots-Tag: noindex, nofollow
